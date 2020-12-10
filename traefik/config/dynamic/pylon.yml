@@ -1,0 +1,12 @@
+http:
+  routers:
+    pylon:
+      rule: "PathPrefix(`/`)"
+      entrypoints:
+      - "http"
+      service: "pylon"
+  services:
+    pylon:
+      loadBalancer:
+        servers:
+        - url: "http://pylon:8080/"

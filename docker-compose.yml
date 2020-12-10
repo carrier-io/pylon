@@ -1,0 +1,54 @@
+version: "3.3"
+services:
+
+  traefik:
+    image: traefik:picodon
+    volumes:
+      - ./traefik/config/static:/etc/traefik
+      - ./traefik/config:/config
+    networks:
+      - pylon
+    ports:
+      - "80:80"
+
+  redis:
+    image: redis:alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks:
+      - pylon
+
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    volumes:
+      - minio-data:/data
+    networks:
+      - pylon
+
+  pylon:
+    build: ../pylon
+    environment:
+      - CORE_DEBUG_LOGGING=true
+      - CORE_CONFIG_SEED=file:/config/pylon.yml
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    volumes:
+      - ./core/config:/config
+    networks:
+      - pylon
+    depends_on:
+      - redis
+      - minio
+
+volumes:
+  redis-data:
+  minio-data:
+
+networks:
+  pylon:

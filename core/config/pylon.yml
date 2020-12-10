@@ -1,0 +1,15 @@
+server:
+  proxy: true
+
+redis:
+  host: redis
+  password: ${REDIS_PASSWORD}
+
+storage:
+  endpoint: minio:9000
+  access_key: ${MINIO_ACCESS_KEY}
+  secret_key: ${MINIO_SECRET_KEY}
+  secure: false
+  buckets:
+    module: module
+    config: config

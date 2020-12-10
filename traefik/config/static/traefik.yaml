@@ -1,0 +1,20 @@
+providers:
+  file:
+    directory: /config/dynamic
+    watch: true
+
+api:
+  dashboard: true
+ping:
+  manualRouting: true
+
+entryPoints:
+  http:
+    address: ":80"
+    forwardedHeaders:
+      trustedIPs:
+      - "127.0.0.1/32"
+
+log:
+  format: common
+  level: INFO
