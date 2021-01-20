@@ -13,3 +13,6 @@ storage:
   buckets:
     module: module
     config: config
+
+# application:
+#   EXPLAIN_TEMPLATE_LOADING: true
