@@ -42,14 +42,20 @@ class ModuleManager:
     def __init__(self, settings):
         self.settings = settings
         self.modules = dict()  # module_name -> (module_root_path, module_metadata, module_obj)
+        self.metadata = dict()  # module_obj -> module_metadata
 
     def add_module(self, module_name, module_root_path, module_metadata, module_obj):
         """ Register module """
         self.modules[module_name] = (module_root_path, module_metadata, module_obj)
+        self.metadata[module_obj] = (module_root_path, module_metadata, module_name)
 
     def get_module(self, module_name):
         """ Get loaded module """
         return self.modules.get(module_name, None)
+
+    def get_metadata(self, module_obj):
+        """ Get module metadata """
+        return self.metadata.get(module_obj, None)
 
 
 class DataModuleLoader(importlib.abc.MetaPathFinder):
@@ -98,8 +104,8 @@ class DataModuleLoader(importlib.abc.MetaPathFinder):
             with self.storage.open(path, "r") as file:
                 data = file.read()
             return data
-        except:
-            raise OSError("Resource not found")
+        except BaseException as exc:
+            raise OSError("Resource not found") from exc
 
 
 class DataModuleProvider(pkg_resources.NullProvider):  # pylint: disable=W0223

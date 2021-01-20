@@ -57,7 +57,11 @@ from redis import StrictRedis  # pylint: disable=E0401
 from core.tools import log
 from core.tools import config
 from core.tools import module
+from core.tools import event
 from core.tools import storage
+from core.tools import slot
+from core.tools import dependency
+from core.tools.context import Context
 
 
 def main():  # pylint: disable=R0912,R0914,R0915
@@ -65,64 +69,79 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Register signal handling
     signal.signal(signal.SIGTERM, signal_sigterm)
     # Enable logging
-    if os.environ.get("CORE_DEBUG_LOGGING", "").lower() in ["true", "yes"]:
-        log_level = logging.DEBUG
-    else:
-        log_level = logging.INFO
-    log.init(log_level)
+    enable_logging()
+    # Say hello
     log.info("Starting plugin-based Galloper core")
+    # Make context holder
+    context = Context()
     # Load settings from seed
-    log.info("Loading settings")
-    settings_data = None
-    settings_seed = os.environ.get("CORE_CONFIG_SEED", None)
-    if settings_seed and ":" in settings_seed:
-        settings_seed_tag = settings_seed[:settings_seed.find(":")]
-        settings_seed_data = settings_seed[len(settings_seed_tag)+1:]
-        try:
-            seed = importlib.import_module(f"core.seeds.{settings_seed_tag}")
-            settings_data = seed.unseed(settings_seed_data)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to unseed settings")
-    if not settings_data:
+    log.info("Loading and parsing settings")
+    settings = load_settings()
+    if not settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
-    # Parse settings
-    log.info("Parsing settings")
-    settings = yaml.load(os.path.expandvars(settings_data), Loader=yaml.SafeLoader)
-    settings = config.config_substitution(settings, config.vault_secrets(settings))
+    context.settings = settings
     # Register provider for template and resource loading from modules
     pkg_resources.register_loader_type(module.DataModuleLoader, module.DataModuleProvider)
     # Make ModuleManager instance
     module_manager = module.ModuleManager(settings)
+    context.module_manager = module_manager
+    # Make EventManager instance
+    event_manager = event.EventManager(context)
+    context.event_manager = event_manager
     # Make app instance
     log.info("Creating Flask application")
     app = flask.Flask("project")
     if settings.get("server", dict()).get("proxy", False):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-    # Set app settings
-    app.config["SETTINGS"] = settings
-    app.config["MODULES"] = module_manager
+    context.app = app
+    # Set application settings
+    app.config["CONTEXT"] = context
     app.config.from_mapping(settings.get("application", dict()))
-    # Enable third-party extensions
-    redis_config = settings.get("redis", dict())
-    if redis_config:
-        session_store = RedisStore(
-            StrictRedis(
-                host=redis_config.get("host", "localhost"),
-                password=redis_config.get("password", None),
-            )
-        )
-        log.info("Using redis for session storage")
-    else:
-        session_store = DictStore()
-        log.info("Using memory for session storage")
-    KVSessionExtension(session_store, app)
+    # Enable server-side sessions
+    init_flask_sessions(context)
+    # Make SlotManager instance
+    slot_manager = slot.SlotManager(context)
+    context.slot_manager = slot_manager
+    app.context_processor(slot.template_slot_processor(context))
     # Load and initialize modules
-    temporary_data_dirs = list()
+    temporary_data_dirs = load_modules(context)
+    # Run WSGI server
+    log.info("Starting WSGI server")
+    try:
+        http_server = WSGIServer(
+            (
+                settings.get("server", dict()).get("host", ""),
+                settings.get("server", dict()).get("port", 8080)
+            ),
+            app
+        )
+        http_server.serve_forever()
+    finally:
+        log.info("WSGI server stopped")
+        # De-init modules
+        for module_name in module_manager.modules:
+            _, _, module_obj = module_manager.get_module(module_name)
+            module_obj.deinit()
+        # Delete module data dirs
+        for directory in temporary_data_dirs:
+            log.info("Deleting temporary data directory: %s", directory)
+            try:
+                shutil.rmtree(directory)
+            except:  # pylint: disable=W0702
+                log.exception("Failed to delete, skipping")
+    # Exit
+    log.info("Exiting")
+
+
+def load_modules(context):
+    """ Load and enable platform modules """
     #
-    for module_name in storage.list_modules(settings):
-        log.info("Module: %s", module_name)
-        module_data = storage.get_module(settings, module_name)
+    module_map = dict()  # module_name -> (metadata, loader)
+    #
+    for module_name in storage.list_modules(context.settings):
+        log.info("Found module: %s", module_name)
+        module_data = storage.get_module(context.settings, module_name)
         if not module_data:
             log.error("Failed to get module data, skipping")
             continue
@@ -135,6 +154,21 @@ def main():  # pylint: disable=R0912,R0914,R0915
                 continue
             with module_loader.storage.open("metadata.json", "r") as file:
                 module_metadata = json.load(file)
+            # Add to module map
+            module_map[module_name] = (module_metadata, module_loader)
+        except:  # pylint: disable=W0702
+            log.exception("Failed to prepare module: %s", module_name)
+    #
+    module_order = dependency.resolve_depencies(module_map)
+    log.debug("Module order: %s", module_order)
+    #
+    temporary_data_dirs = list()
+    #
+    for module_name in module_order:
+        log.info("Enabling module: %s", module_name)
+        try:
+            # Get module metadata and loader
+            module_metadata, module_loader = module_map[module_name]
             log.info(
                 "Initializing module: %s [%s]",
                 module_metadata.get("name", "N/A"),
@@ -156,38 +190,77 @@ def main():  # pylint: disable=R0912,R0914,R0915
             module_pkg = importlib.import_module(module_metadata.get("module"))
             # Make module instance
             module_obj = module_pkg.Module(
-                storage.get_config(settings, module_name), module_root_path, app
+                storage.get_config(context.settings, module_name), module_root_path, context
             )
             # Initialize module
             module_obj.init()
             # Finally done
-            module_manager.add_module(module_name, module_root_path, module_metadata, module_obj)
+            context.module_manager.add_module(
+                module_name, module_root_path, module_metadata, module_obj
+            )
             log.info("Initialized module: %s", module_name)
         except:  # pylint: disable=W0702
             log.exception("Failed to initialize module: %s", module_name)
-    # Run WSGI server
-    log.info("Starting WSGI server")
-    try:
-        http_server = WSGIServer(
-            (
-                settings.get("server", dict()).get("host", ""),
-                settings.get("server", dict()).get("port", 8080)
-            ),
-            app
+    #
+    return temporary_data_dirs
+
+
+def init_flask_sessions(context):
+    """ Enable third-party server-side session storage """
+    redis_config = context.settings.get("redis", dict())
+    #
+    if redis_config:
+        session_store = RedisStore(
+            StrictRedis(
+                host=redis_config.get("host", "localhost"),
+                password=redis_config.get("password", None),
+            )
         )
-        http_server.serve_forever()
-    finally:
-        log.info("WSGI server stopped")
-        # De-init modules
-        for module_name in module_manager.modules:
-            _, _, module_obj = module_manager.get_module(module_name)
-            module_obj.deinit()
-        # Delete module data dirs
-        for directory in temporary_data_dirs:
-            log.info("Deleting temporary data directory: %s", directory)
-            shutil.rmtree(directory)
-    # Exit
-    log.info("Exiting")
+        log.info("Using redis for session storage")
+    else:
+        session_store = DictStore()
+        log.info("Using memory for session storage")
+    #
+    KVSessionExtension(session_store, context.app)
+
+
+def load_settings():
+    """ Load settings from seed from env """
+    settings_data = None
+    settings_seed = os.environ.get("CORE_CONFIG_SEED", None)
+    #
+    if not settings_seed or ":" not in settings_seed:
+        return None
+    #
+    settings_seed_tag = settings_seed[:settings_seed.find(":")]
+    settings_seed_data = settings_seed[len(settings_seed_tag)+1:]
+    try:
+        seed = importlib.import_module(f"core.seeds.{settings_seed_tag}")
+        settings_data = seed.unseed(settings_seed_data)
+    except:  # pylint: disable=W0702
+        log.exception("Failed to unseed settings")
+    #
+    if not settings_data:
+        return None
+    #
+    try:
+        settings = yaml.load(os.path.expandvars(settings_data), Loader=yaml.SafeLoader)
+        settings = config.config_substitution(settings, config.vault_secrets(settings))
+    except:  # pylint: disable=W0702
+        log.exception("Failed to parse settings")
+        return None
+    #
+    return settings
+
+
+def enable_logging():
+    """ Enable logging using log level supplied from env """
+    if os.environ.get("CORE_DEBUG_LOGGING", "").lower() in ["true", "yes"]:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+    #
+    log.init(log_level)
 
 
 def signal_sigterm(signal_num, stack_frame):
