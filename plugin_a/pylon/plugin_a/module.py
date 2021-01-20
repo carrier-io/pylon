@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # coding=utf-8
 
-#   Copyright 2020 getcarrier.io
+#   Copyright 2021 getcarrier.io
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 """ Module """
 
 import flask  # pylint: disable=E0401
+import jinja2  # pylint: disable=E0401
 
 from core.tools import log  # pylint: disable=E0611,E0401
 from core.tools import module  # pylint: disable=E0611,E0401
@@ -34,25 +35,27 @@ class Module(module.ModuleModel):
     def init(self):
         """ Init module """
         log.info("Initializing module")
-        # Make Blueprint
         bp = flask.Blueprint(  # pylint: disable=C0103
-            "base", "pylon.base",
+            "plugin_a", "pylon.plugin_a",
             root_path=self.root_path,
-            url_prefix="/",
-            template_folder="templates",
-            static_url_path="/",
-            static_folder="static",
+            url_prefix="/plugin_a",
         )
-        # Add routes
-        bp.add_url_rule("/", "index", self.index)
+        bp.jinja_loader = jinja2.loaders.PackageLoader("pylon.plugin_a", "templates")
         # Register in app
         self.context.app.register_blueprint(bp)
+        # Register template slot callback
+        self.context.slot_manager.register_callback("base", self.base_slot)
+        # Register event listener
+        self.context.event_manager.register_listener("base.index", self.base_event)
 
     def deinit(self):  # pylint: disable=R0201
         """ De-init module """
         log.info("De-initializing module")
 
-    def index(self):  # pylint: disable=R0201
-        """ Index """
-        self.context.event_manager.fire_event("base.index")
-        return flask.render_template("index.html")
+    def base_slot(self, context, slot, payload):  # pylint: disable=R0201,W0613
+        """ Base template slot """
+        return flask.render_template("a-slot-base.html")
+
+    def base_event(self, context, event, payload):  # pylint: disable=R0201,W0613
+        """ Base event listener """
+        log.info("Got event: %s", event)
