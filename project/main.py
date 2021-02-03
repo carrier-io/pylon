@@ -38,6 +38,7 @@ import os
 import sys
 import json
 import shutil
+import socket
 import logging
 import signal
 import tempfile
@@ -106,6 +107,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     app.context_processor(slot.template_slot_processor(context))
     # Load and initialize modules
     temporary_data_dirs = load_modules(context)
+    # Register Traefik route via Redis KV
+    register_traefik_route(context)
     # Run WSGI server
     log.info("Starting WSGI server")
     try:
@@ -119,6 +122,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         http_server.serve_forever()
     finally:
         log.info("WSGI server stopped")
+        # Unregister traefik route
+        unregister_traefik_route(context)
         # De-init modules
         for module_name in module_manager.modules:
             _, _, module_obj = module_manager.get_module(module_name)
@@ -132,6 +137,48 @@ def main():  # pylint: disable=R0912,R0914,R0915
                 log.exception("Failed to delete, skipping")
     # Exit
     log.info("Exiting")
+
+
+def register_traefik_route(context):
+    """ Create Traefik route for this Pylon instance """
+    node = socket.gethostname()
+    log.info("Registering Traefik route for node '%s'", node)
+    #
+    redis_config = context.settings.get("redis", dict())
+    if not redis_config:
+        log.error("Cannot register route: no refis config")
+        return
+    #
+    store = StrictRedis(
+        host=redis_config.get("host", "localhost"),
+        password=redis_config.get("password", None),
+    )
+    #
+    store.set(f"traefik/http/routers/{node}/rule", "PathPrefix(`/`)")  # pylint: disable=C0301
+    store.set(f"traefik/http/routers/{node}/entrypoints/0", "http")
+    store.set(f"traefik/http/routers/{node}/service", f"{node}")
+    store.set(f"traefik/http/services/{node}/loadbalancer/servers/0/url", f"http://{node}:8080/")
+
+
+def unregister_traefik_route(context):
+    """ Delete Traefik route for this Pylon instance """
+    node = socket.gethostname()
+    log.info("Unregistering Traefik route for node '%s'", node)
+    #
+    redis_config = context.settings.get("redis", dict())
+    if not redis_config:
+        log.error("Cannot unregister route: no refis config")
+        return
+    #
+    store = StrictRedis(
+        host=redis_config.get("host", "localhost"),
+        password=redis_config.get("password", None),
+    )
+    #
+    store.delete(f"traefik/http/services/{node}/loadbalancer/servers/0/url")
+    store.delete(f"traefik/http/routers/{node}/service")
+    store.delete(f"traefik/http/routers/{node}/entrypoints/0")
+    store.delete(f"traefik/http/routers/{node}/rule")
 
 
 def load_modules(context):
