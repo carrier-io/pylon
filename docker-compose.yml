@@ -54,6 +54,7 @@ services:
     networks:
       - pylon
     depends_on:
+      - traefik
       - redis
       - minio
 
