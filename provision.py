@@ -20,14 +20,46 @@
 import io
 import os
 import zipfile
+import argparse
 
 import dotenv  # pylint: disable=E0401
+import redis  # pylint: disable=E0401
 import minio  # pylint: disable=E0401
 
 
 def main():  # pylint: disable=R0914
     """ Entry point """
     dotenv.load_dotenv()
+    #
+    parser = argparse.ArgumentParser(description="Provision local instance")
+    parser.add_argument("--redis", action='store_true', help="prepare Redis")
+    parser.add_argument("--minio", action='store_true', help="prepare MinIO")
+    args = parser.parse_args()
+    #
+    if args.redis:
+        provision_redis()
+    if args.minio:
+        provision_minio()
+
+
+def provision_redis():
+    """ Create keys in Redis """
+    store = redis.StrictRedis(
+        host="localhost",
+        port=6379,
+        password=os.getenv("REDIS_PASSWORD"),
+    )
+    #
+    print("Setting Redis keys for MinIO")
+    #
+    store.set("traefik/http/routers/minio/rule", "PathPrefix(`/minio`) || Query(`X-Amz-SignedHeaders=host`) || HeadersRegexp(`X-Amz-Date`, `.*T.*Z`)")  # pylint: disable=C0301
+    store.set("traefik/http/routers/minio/entrypoints/0", "http")
+    store.set("traefik/http/routers/minio/service", "minio")
+    store.set("traefik/http/services/minio/loadbalancer/servers/0/url", "http://minio:9000/")
+
+
+def provision_minio():  # pylint: disable=R0914
+    """ Upload modules to MinIO """
     #
     storage = minio.Minio(
         endpoint="localhost",

@@ -3,13 +3,22 @@ services:
 
   traefik:
     image: traefik:picodon
-    volumes:
-      - ./traefik/config/static:/etc/traefik
-      - ./traefik/config:/config
+    environment:
+      - TRAEFIK_PROVIDERS_REDIS_ENDPOINTS=redis:6379
+      - TRAEFIK_PROVIDERS_REDIS_ROOTKEY=traefik
+      - TRAEFIK_PROVIDERS_REDIS_PASSWORD=redispassword
+      - TRAEFIK_API_DASHBOARD=true
+      - TRAEFIK_PING_MANUALROUTING=true
+      - TRAEFIK_ENTRYPOINTS_HTTP_ADDRESS=:80
+      - TRAEFIK_ENTRYPOINTS_HTTP_FORWARDEDHEADERS_TRUSTEDIPS=127.0.0.1/32
+      - TRAEFIK_LOG_FORMAT=common
+      - TRAEFIK_LOG_LEVEL=DEBUG
     networks:
       - pylon
     ports:
       - "80:80"
+    depends_on:
+      - redis
 
   redis:
     image: redis:alpine
@@ -18,6 +27,8 @@ services:
       - redis-data:/data
     networks:
       - pylon
+    ports:
+      - "6379:6379"
 
   minio:
     image: minio/minio:latest

@@ -21,11 +21,16 @@ echo 'MINIO_SECRET_KEY=miniosecretkey' >> .env
 ### Initialize
 
 ```sh
-docker-compose up -d traefik minio
 python3 -m venv ../pylon-venv
 ../pylon-venv/bin/pip install -r requirements.txt
-../pylon-venv/bin/python provision.py
-docker-compose up -d && docker-compose logs -f
+
+docker-compose up -d redis
+../pylon-venv/bin/python provision.py --redis
+
+docker-compose up -d traefik minio
+../pylon-venv/bin/python provision.py --minio
+
+docker-compose build && docker-compose up -d && docker-compose logs -f
 ```
 
 ### Done
