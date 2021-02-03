@@ -1,7 +1,7 @@
 {
   "name": "Demo Galloper plugin B",
   "version": "0.1",
-  "module": "pylon.plugin_b",
+  "module": "pylon_plugin_b",
   "extract": false,
   "depends_on": ["base"],
   "init_after": []

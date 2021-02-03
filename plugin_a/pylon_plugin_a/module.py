@@ -36,11 +36,11 @@ class Module(module.ModuleModel):
         """ Init module """
         log.info("Initializing module")
         bp = flask.Blueprint(  # pylint: disable=C0103
-            "plugin_a", "pylon.plugin_a",
+            "plugin_a", "pylon_plugin_a",
             root_path=self.root_path,
             url_prefix="/plugin_a",
         )
-        bp.jinja_loader = jinja2.loaders.PackageLoader("pylon.plugin_a", "templates")
+        bp.jinja_loader = jinja2.loaders.PackageLoader("pylon_plugin_a", "templates")
         # Register in app
         self.context.app.register_blueprint(bp)
         # Register template slot callback
