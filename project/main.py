@@ -51,6 +51,7 @@ from gevent.pywsgi import WSGIServer  # pylint: disable=E0401
 from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 
 from flask_kvsession import KVSessionExtension  # pylint: disable=E0401
+from simplekv.decorator import PrefixDecorator  # pylint: disable=E0401
 from simplekv.memory.redisstore import RedisStore  # pylint: disable=E0401
 from simplekv.memory import DictStore  # pylint: disable=E0401
 from redis import StrictRedis  # pylint: disable=E0401
@@ -263,6 +264,8 @@ def init_flask_sessions(context):
                 password=redis_config.get("password", None),
             )
         )
+        if redis_config.get("session_prefix", None):
+            session_store = PrefixDecorator("pylon_session_", session_store)
         log.info("Using redis for session storage")
     else:
         session_store = DictStore()
