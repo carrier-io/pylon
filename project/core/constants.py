@@ -22,3 +22,6 @@
 
 LOG_FORMAT = "%(asctime)s - %(levelname)8s - %(name)s - %(message)s"
 LOG_DATE_FORMAT = "%Y.%m.%d %H:%M:%S %Z"
+
+SERVER_DEFAULT_PORT = 8080
+SERVER_DEFAULT_HOST = "0.0.0.0"
