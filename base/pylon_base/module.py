@@ -38,9 +38,9 @@ class Module(module.ModuleModel):
         bp = flask.Blueprint(  # pylint: disable=C0103
             "base", "pylon_base",
             root_path=self.root_path,
-            url_prefix="/",
+            url_prefix=f"{self.context.url_prefix}/",
             template_folder="templates",
-            static_url_path="/",
+            static_url_path=f"{self.context.url_prefix}/",
             static_folder="static",
         )
         # Add routes

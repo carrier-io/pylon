@@ -38,7 +38,7 @@ class Module(module.ModuleModel):
         bp = flask.Blueprint(  # pylint: disable=C0103
             "plugin_a", "pylon_plugin_a",
             root_path=self.root_path,
-            url_prefix="/plugin_a",
+            url_prefix=f"{self.context.url_prefix}/plugin_a",
         )
         bp.jinja_loader = jinja2.loaders.PackageLoader("pylon_plugin_a", "templates")
         # Register in app
