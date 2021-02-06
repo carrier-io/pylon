@@ -104,8 +104,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Set application settings
     app.config["CONTEXT"] = context
     app.config.from_mapping(settings.get("application", dict()))
-    # Save global URL prefix to context
+    # Save global URL prefix to context. May merge with traefik rule in future
     context.url_prefix = settings.get("server", dict()).get("path", "/")
+    while context.url_prefix.endswith("/"):
+        context.url_prefix = context.url_prefix[:-1]
     # Enable server-side sessions
     init_flask_sessions(context)
     # Make SlotManager instance
