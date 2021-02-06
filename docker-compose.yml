@@ -46,11 +46,13 @@ services:
     environment:
       - CORE_DEBUG_LOGGING=true
       - CORE_CONFIG_SEED=file:/config/pylon.yml
+      - CORE_DEVELOPMENT_MODE=true
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     volumes:
       - ./core/config:/config
+      - ../pylon-demo:/data/modules
     networks:
       - pylon
     depends_on:

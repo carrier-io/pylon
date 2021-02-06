@@ -1,10 +1,35 @@
+# General server config
 server:
+  path: /
   proxy: true
+  # host: "0.0.0.0"
+  # port: 8080
 
-redis:
-  host: redis
-  password: ${REDIS_PASSWORD}
+# Local paths to modules and config
+development:
+  modules: /data/modules
+  config: /data/config
 
+# Session storage
+sessions:
+  redis:
+    host: redis
+    password: ${REDIS_PASSWORD}
+  prefix: pylon_session_
+
+# Traefik config
+traefik:
+  redis:
+    host: redis
+    password: ${REDIS_PASSWORD}
+  rootkey: traefik
+  entrypoint: http
+  rule: PathPrefix(`/`)
+  node_name: core
+  node_hostname: pylon
+  # node_url: http://pylon:8080
+
+# Module/config storage
 storage:
   endpoint: minio:9000
   access_key: ${MINIO_ACCESS_KEY}
@@ -14,5 +39,6 @@ storage:
     module: module
     config: config
 
+# Settings for Flask application
 # application:
 #   EXPLAIN_TEMPLATE_LOADING: true
