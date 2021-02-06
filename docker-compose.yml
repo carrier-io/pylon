@@ -60,6 +60,25 @@ services:
       - redis
       - minio
 
+  second:
+    build: ../pylon
+    environment:
+      - CORE_DEBUG_LOGGING=true
+      - CORE_CONFIG_SEED=file:/config/pylon.yml
+      - CORE_DEVELOPMENT_MODE=true
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    volumes:
+      - ./second/config:/config
+      - ../pylon-demo:/data/modules
+    networks:
+      - pylon
+    depends_on:
+      - traefik
+      - redis
+      - minio
+
 volumes:
   redis-data:
   minio-data:
