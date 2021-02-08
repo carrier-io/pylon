@@ -137,7 +137,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
             app.run(
                 host=settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
                 port=settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
-                debug=CORE_DEVELOPMENT_MODE
+                debug=CORE_DEVELOPMENT_MODE, use_reloader=CORE_DEVELOPMENT_MODE,
             )
     finally:
         log.info("WSGI server stopped")
@@ -310,6 +310,10 @@ def load_modules(context):
 
 def load_development_modules(context):
     """ Load and enable platform modules in development mode """
+    #
+    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        log.info("Running in development mode before reloader is started. Skipping module loading")
+        return list()
     #
     module_dir = context.settings["development"]["modules"]
     log.info("Using module dir: %s", module_dir)
