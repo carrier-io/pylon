@@ -29,6 +29,18 @@ traefik:
   node_hostname: second
   # node_url: http://second:8080
 
+# Events queue
+events:
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    user: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+    vhost: carrier
+    queue: events
+    hmac_key: key
+    hmac_digest: sha512
+
 # Module/config storage
 storage:
   endpoint: minio:9000

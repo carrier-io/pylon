@@ -16,6 +16,8 @@ touch .env
 echo 'REDIS_PASSWORD=redispassword' >> .env
 echo 'MINIO_ACCESS_KEY=minioaccesskey' >> .env
 echo 'MINIO_SECRET_KEY=miniosecretkey' >> .env
+echo 'RABBITMQ_USER=user' >> .env
+echo 'RABBITMQ_PASSWORD=password' >> .env
 ```
 
 ### Initialize
@@ -27,7 +29,7 @@ python3 -m venv ../pylon-venv
 docker-compose up -d redis
 ../pylon-venv/bin/python provision.py --redis
 
-docker-compose up -d traefik minio
+docker-compose up -d traefik minio rabbitmq
 ../pylon-venv/bin/python provision.py --minio
 
 docker-compose build && docker-compose up -d && docker-compose logs -f

@@ -41,6 +41,19 @@ services:
     networks:
       - pylon
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+      - RABBITMQ_DEFAULT_VHOST=carrier
+    networks:
+      - pylon
+    ports:
+      - "15672:15672"
+    depends_on:
+      - redis
+
   pylon:
     build: ../pylon
     environment:
@@ -50,6 +63,8 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     volumes:
       - ./core/config:/config
       - ../pylon-demo:/data/modules
@@ -59,6 +74,7 @@ services:
       - traefik
       - redis
       - minio
+      - rabbitmq
 
   second:
     build: ../pylon
@@ -69,6 +85,8 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     volumes:
       - ./second/config:/config
       - ../pylon-demo:/data/modules
@@ -78,6 +96,7 @@ services:
       - traefik
       - redis
       - minio
+      - rabbitmq
 
 volumes:
   redis-data:
