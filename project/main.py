@@ -162,6 +162,10 @@ def register_traefik_route(context):
     """ Create Traefik route for this Pylon instance """
     context.traefik_redis_keys = list()
     #
+    if CORE_DEVELOPMENT_MODE and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        log.info("Running in development mode before reloader is started. Skipping registration")
+        return
+    #
     traefik_config = context.settings.get("traefik", dict())
     if not traefik_config:
         log.error("Cannot register route: no traefik config")
