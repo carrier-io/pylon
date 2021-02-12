@@ -22,7 +22,7 @@
 
 import yaml  # pylint: disable=E0401
 
-from core.tools.minio import MinIOHelper
+from ..tools.minio import MinIOHelper
 
 
 def unseed(seed_data):

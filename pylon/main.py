@@ -25,6 +25,7 @@
 #
 
 import os
+
 CORE_DEVELOPMENT_MODE = os.environ.get("CORE_DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
 
 if not CORE_DEVELOPMENT_MODE:
@@ -50,6 +51,7 @@ import pkg_resources
 
 import yaml  # pylint: disable=E0401
 import flask  # pylint: disable=E0401
+from flask_restful import Api
 from gevent.pywsgi import WSGIServer  # pylint: disable=E0401
 from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 
@@ -59,15 +61,15 @@ from simplekv.memory.redisstore import RedisStore  # pylint: disable=E0401
 from simplekv.memory import DictStore  # pylint: disable=E0401
 from redis import StrictRedis  # pylint: disable=E0401
 
-from core import constants
-from core.tools import log
-from core.tools import config
-from core.tools import module
-from core.tools import event
-from core.tools import storage
-from core.tools import slot
-from core.tools import dependency
-from core.tools.context import Context
+from .core import constants
+from .core.tools import log
+from .core.tools import config
+from .core.tools import module
+from .core.tools import event
+from .core.tools import storage
+from .core.tools import slot
+from .core.tools import dependency
+from .core.tools.context import Context
 
 
 def main():  # pylint: disable=R0912,R0914,R0915
@@ -98,9 +100,11 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make app instance
     log.info("Creating Flask application")
     app = flask.Flask("project")
+    api = Api(app, catch_all_404s=True)
     if settings.get("server", dict()).get("proxy", False):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
     context.app = app
+    context.api = api
     # Set application settings
     app.config["CONTEXT"] = context
     app.config.from_mapping(settings.get("application", dict()))
@@ -122,9 +126,9 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Register Traefik route via Redis KV
     register_traefik_route(context)
     # Run WSGI server
-    log.info("Starting WSGI server")
     try:
         if not CORE_DEVELOPMENT_MODE:
+            log.info("Starting WSGI server")
             http_server = WSGIServer(
                 (
                     settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
@@ -134,6 +138,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
             )
             http_server.serve_forever()
         else:
+            log.info("Starting Flask server")
             app.run(
                 host=settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
                 port=settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
@@ -419,7 +424,7 @@ def load_settings():
     settings_seed_tag = settings_seed[:settings_seed.find(":")]
     settings_seed_data = settings_seed[len(settings_seed_tag)+1:]
     try:
-        seed = importlib.import_module(f"core.seeds.{settings_seed_tag}")
+        seed = importlib.import_module(f"pylon.core.seeds.{settings_seed_tag}")
         settings_data = seed.unseed(settings_seed_data)
     except:  # pylint: disable=W0702
         log.exception("Failed to unseed settings")

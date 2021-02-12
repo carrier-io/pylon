@@ -21,7 +21,7 @@ import functools
 
 import arbiter  # pylint: disable=E0401
 
-from core.tools import log
+from ..tools import log
 
 
 class EventManager:
@@ -31,6 +31,7 @@ class EventManager:
         self.context = context
         #
         events_rabbitmq = self.context.settings.get("events", dict()).get("rabbitmq", dict())
+        log.info(events_rabbitmq)
         if events_rabbitmq:
             try:
                 self.node = arbiter.EventNode(

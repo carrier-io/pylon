@@ -1,13 +1,14 @@
 gevent==20.9.0
 Flask==1.1.2
+flask_restful==0.3.8
 simplekv==0.14.1
 Flask-KVSession==0.6.2
 requests==2.25.0
-psycopg2==2.8.6
+psycopg2-binary==2.8.6
 psycogreen==1.0.2
 minio==7.0.0
 PyYAML==5.3.1
 hvac==0.10.5
 redis==3.5.3
 watchdog==1.0.2
-git+https://github.com/carrier-io/arbiter.git@event_node#egg=arbiter
+arbiter @ https://github.com/carrier-io/arbiter.git#egg=arbiter

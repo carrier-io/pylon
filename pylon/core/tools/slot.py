@@ -17,7 +17,7 @@
 
 """ Core template slots """
 
-from core.tools import log
+from ..tools import log
 
 
 class SlotManager:
