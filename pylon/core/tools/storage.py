@@ -22,7 +22,7 @@
 
 import os
 
-from core.tools.minio import MinIOHelper
+from ..tools.minio import MinIOHelper
 
 
 def list_modules(settings):
@@ -39,8 +39,9 @@ def list_modules(settings):
 def list_development_modules(settings):
     """ List modules in storage """
     modules = list()
-    for obj in os.listdir(settings["development"]["modules"]):
-        obj_path = os.path.join(settings["development"]["modules"], obj)
+    modules_path = os.environ.get("MODULES_PATH", settings["development"]["modules"])
+    for obj in os.listdir(modules_path):
+        obj_path = os.path.join(modules_path, obj)
         if os.path.isdir(obj_path) and not obj.startswith("."):
             modules.append(obj)
     return modules
@@ -66,8 +67,9 @@ def get_config(settings, name):
 
 def get_development_config(settings, name):
     """ Get config from storage """
+    config_path = os.environ.get("PYLON_CONFIG_PATH", settings["development"]["config"])
     try:
-        with open(os.path.join(settings["development"]["config"], f"{name}.yml"), "rb") as file:
+        with open(os.path.join(config_path, f"{name}.yml"), "rb") as file:
             return file.read()
     except:  # pylint: disable=W0702
         return None

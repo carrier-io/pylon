@@ -23,16 +23,14 @@ import logging
 import inspect
 import urllib3  # pylint: disable=E0401
 import requests  # pylint: disable=E0401
-
-from core import constants
-
+from ..constants import LOG_DATE_FORMAT, LOG_FORMAT
 
 def init(level=logging.INFO):
     """ Initialize logging """
     logging.basicConfig(
         level=level,
-        datefmt=constants.LOG_DATE_FORMAT,
-        format=constants.LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
+        format=LOG_FORMAT,
     )
     logging.raiseExceptions = False
     # Disable requests/urllib3 logging

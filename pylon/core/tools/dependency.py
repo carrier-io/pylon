@@ -20,7 +20,7 @@
     Dependency tools
 """
 
-from core.tools import log
+from ..tools import log
 
 
 def resolve_depencies(module_map):
