@@ -22,7 +22,7 @@
 
 import os
 
-from ..tools.minio import MinIOHelper
+from pylon.core.tools.minio import MinIOHelper
 
 
 def list_modules(settings):

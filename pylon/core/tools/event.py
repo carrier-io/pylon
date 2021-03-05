@@ -21,7 +21,7 @@ import functools
 
 import arbiter  # pylint: disable=E0401
 
-from ..tools import log
+from pylon.core.tools import log
 
 
 class EventManager:
@@ -31,7 +31,6 @@ class EventManager:
         self.context = context
         #
         events_rabbitmq = self.context.settings.get("events", dict()).get("rabbitmq", dict())
-        log.info(events_rabbitmq)
         if events_rabbitmq:
             try:
                 self.node = arbiter.EventNode(
@@ -43,51 +42,29 @@ class EventManager:
                     event_queue=events_rabbitmq.get("queue", "events"),
                     hmac_key=events_rabbitmq.get("hmac_key", None),
                     hmac_digest=events_rabbitmq.get("hmac_digest", "sha512"),
+                    callback_workers=events_rabbitmq.get("callback_workers", 1),
                 )
                 self.node.start()
-                self.partials = dict()
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local events only")
-                self.node = None
+                self.node = arbiter.MockEventNode()
         else:
-            self.node = None
+            self.node = arbiter.MockEventNode()
         #
-        self.listeners = dict()
+        self.partials = dict()
 
     def register_listener(self, event, listener):
         """ Register event listener """
-        if self.node is not None:
-            if listener not in self.partials:
-                self.partials[listener] = functools.partial(listener, self.context)
-            self.node.subscribe(event, self.partials[listener])
-        else:
-            if event not in self.listeners:
-                self.listeners[event] = list()
-            if listener not in self.listeners[event]:
-                self.listeners[event].append(listener)
+        if listener not in self.partials:
+            self.partials[listener] = functools.partial(listener, self.context)
+        self.node.subscribe(event, self.partials[listener])
 
     def unregister_listener(self, event, listener):
         """ Unregister event listener """
-        if self.node is not None:
-            if listener not in self.partials:
-                return
-            self.node.unsubscribe(event, self.partials[listener])
-        else:
-            if event not in self.listeners:
-                return
-            if listener not in self.listeners[event]:
-                return
-            self.listeners[event].remove(listener)
+        if listener not in self.partials:
+            return
+        self.node.unsubscribe(event, self.partials[listener])
 
     def fire_event(self, event, payload=None):
         """ Run listeners for event """
-        if self.node is not None:
-            self.node.emit(event, payload)
-        else:
-            if event not in self.listeners:
-                return
-            for listener in self.listeners[event]:
-                try:
-                    listener(self.context, event, payload)
-                except:  # pylint: disable=W0702
-                    log.exception("Event listener exception")
+        self.node.emit(event, payload)

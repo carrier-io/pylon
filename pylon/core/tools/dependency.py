@@ -20,7 +20,7 @@
     Dependency tools
 """
 
-from ..tools import log
+from pylon.core.tools import log
 
 
 def resolve_depencies(module_map):

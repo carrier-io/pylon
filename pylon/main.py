@@ -61,15 +61,16 @@ from simplekv.memory.redisstore import RedisStore  # pylint: disable=E0401
 from simplekv.memory import DictStore  # pylint: disable=E0401
 from redis import StrictRedis  # pylint: disable=E0401
 
-from .core import constants
-from .core.tools import log
-from .core.tools import config
-from .core.tools import module
-from .core.tools import event
-from .core.tools import storage
-from .core.tools import slot
-from .core.tools import dependency
-from .core.tools.context import Context
+from pylon.core import constants
+from pylon.core.tools import log
+from pylon.core.tools import config
+from pylon.core.tools import module
+from pylon.core.tools import event
+from pylon.core.tools import storage
+from pylon.core.tools import rpc
+from pylon.core.tools import slot
+from pylon.core.tools import dependency
+from pylon.core.tools.context import Context
 
 
 def main():  # pylint: disable=R0912,R0914,R0915
@@ -112,8 +113,13 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.url_prefix = settings.get("server", dict()).get("path", "/")
     while context.url_prefix.endswith("/"):
         context.url_prefix = context.url_prefix[:-1]
+    # Save global node name
+    context.node_name = settings.get("server", dict()).get("name", socket.gethostname())
     # Enable server-side sessions
     init_flask_sessions(context)
+    # Make RpcManager instance
+    rpc_manager = rpc.RpcManager(context)
+    context.rpc_manager = rpc_manager
     # Make SlotManager instance
     slot_manager = slot.SlotManager(context)
     context.slot_manager = slot_manager
@@ -184,11 +190,7 @@ def register_traefik_route(context):
     local_hostname = socket.gethostname()
     local_port = context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT)
     #
-    if "node_name" in traefik_config:
-        node_name = traefik_config.get("node_name")
-    else:
-        node_name = local_hostname
-    context.node_name = node_name
+    node_name = context.node_name
     #
     if "node_url" in traefik_config:
         node_url = traefik_config.get("node_url")

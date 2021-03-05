@@ -11,4 +11,4 @@ PyYAML==5.3.1
 hvac==0.10.5
 redis==3.5.3
 watchdog==1.0.2
-arbiter @ https://github.com/carrier-io/arbiter.git#egg=arbiter
+arbiter @ git+https://github.com/carrier-io/arbiter.git#egg=arbiter
