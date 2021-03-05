@@ -1,0 +1,6 @@
+{
+  "name": "Base Galloper module",
+  "version": "0.1",
+  "module": "pylon_base",
+  "extract": true
+}

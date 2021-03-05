@@ -36,11 +36,11 @@ class Module(module.ModuleModel):
         """ Init module """
         log.info("Initializing module")
         bp = flask.Blueprint(  # pylint: disable=C0103
-            "plugin_b", "pylon_plugin_b",
+            "plugin_a", "pylon_plugin_a",
             root_path=self.root_path,
-            url_prefix=f"{self.context.url_prefix}/plugin_b",
+            url_prefix=f"{self.context.url_prefix}/plugin_a",
         )
-        bp.jinja_loader = jinja2.loaders.PackageLoader("pylon_plugin_b", "templates")
+        bp.jinja_loader = jinja2.loaders.PackageLoader("pylon_plugin_a", "templates")
         # Register in app
         self.context.app.register_blueprint(bp)
         # Register template slot callback
@@ -54,7 +54,10 @@ class Module(module.ModuleModel):
 
     def base_slot(self, context, slot, payload):  # pylint: disable=R0201,W0613
         """ Base template slot """
-        return flask.render_template("b-slot-base.html")
+        with context.app.app_context():
+            return flask.render_template(
+                "a-slot-base.html", data=self.context.rpc_manager.call.test_rpc()
+            )
 
     def base_event(self, context, event, payload):  # pylint: disable=R0201,W0613
         """ Base event listener """
