@@ -1,5 +1,6 @@
 # General server config
 server:
+  name: second
   path: /second
   proxy: true
   # host: "0.0.0.0"
@@ -25,11 +26,10 @@ traefik:
   rootkey: traefik
   entrypoint: http
   rule: PathPrefix(`/second`)
-  node_name: second
   node_hostname: second
   # node_url: http://second:8080
 
-# Events queue
+# Events
 events:
   rabbitmq:
     host: rabbitmq
@@ -40,6 +40,20 @@ events:
     queue: events
     hmac_key: key
     hmac_digest: sha512
+
+# RPC
+rpc:
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    user: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+    vhost: carrier
+    queue: rpc
+    hmac_key: key
+    hmac_digest: sha512
+    callback_workers: 4
+  id_prefix: "second_"
 
 # Module/config storage
 storage:

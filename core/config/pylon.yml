@@ -1,5 +1,6 @@
 # General server config
 server:
+  name: core
   path: /
   proxy: true
   # host: "0.0.0.0"
@@ -25,11 +26,10 @@ traefik:
   rootkey: traefik
   entrypoint: http
   rule: PathPrefix(`/`)
-  node_name: core
   node_hostname: pylon
   # node_url: http://pylon:8080
 
-# Events queue
+# Events
 events:
   rabbitmq:
     host: rabbitmq
@@ -40,6 +40,21 @@ events:
     queue: events
     hmac_key: key
     hmac_digest: sha512
+    callback_workers: 1
+
+# RPC
+rpc:
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    user: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+    vhost: carrier
+    queue: rpc
+    hmac_key: key
+    hmac_digest: sha512
+    callback_workers: 4
+  id_prefix: "core_"
 
 # Module/config storage
 storage:

@@ -67,7 +67,7 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     volumes:
       - ./core/config:/config
-      - ../pylon-demo:/data/modules
+      - ../pylon-demo/first:/data/modules
     networks:
       - pylon
     depends_on:
@@ -89,7 +89,7 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
     volumes:
       - ./second/config:/config
-      - ../pylon-demo:/data/modules
+      - ../pylon-demo/second:/data/modules
     networks:
       - pylon
     depends_on:
