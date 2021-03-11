@@ -19,7 +19,10 @@
 
 import arbiter  # pylint: disable=E0401
 
-from core.tools import log
+try:
+    from core.tools import log
+except ModuleNotFoundError:
+    from pylon.core.tools import log
 
 
 class RpcManager:
