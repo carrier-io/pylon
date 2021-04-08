@@ -72,8 +72,8 @@ class RpcManager:
 
     def call_function(self, func, *args, **kvargs):
         """ Run RPC function """
-        self.node.call(func, *args, **kvargs)
+        return self.node.call(func, *args, **kvargs)
 
     def call_function_with_timeout(self, func, timeout, *args, **kvargs):
         """ Run RPC function (with timeout) """
-        self.node.call_with_timeout(func, timeout, *args, **kvargs)
+        return self.node.call_with_timeout(func, timeout, *args, **kvargs)
