@@ -51,8 +51,8 @@ import pkg_resources
 
 import yaml  # pylint: disable=E0401
 import flask  # pylint: disable=E0401
-from flask_restful import Api
-from gevent.pywsgi import WSGIServer  # pylint: disable=E0401
+from flask_restful import Api  # pylint: disable=E0401
+from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412
 from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 
 from flask_kvsession import KVSessionExtension  # pylint: disable=E0401

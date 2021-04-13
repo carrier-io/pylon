@@ -22,7 +22,7 @@
 
 import os
 
-import yaml
+import yaml  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools.config import config_substitution, vault_secrets
@@ -64,11 +64,11 @@ def get_config(settings, name):
     """ Get config from storage """
     minio = MinIOHelper.get_client(settings["storage"])
     try:
-        config_data = minio.get_object(settings["storage"]["buckets"]["config"], f"{name}.yml").read()
+        config_data = minio.get_object(settings["storage"]["buckets"]["config"], f"{name}.yml").read()  # pylint: disable=C0301
         yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
-        return config_substitution(yaml_data, vault_secrets(yaml_data))
-    except Exception as e:  # pylint: disable=W0702
-        log.debug(f'Failed to get config {name=} with {settings=}\n\tGot error {str(e)}')
+        return config_substitution(yaml_data, vault_secrets(settings))
+    except:  # pylint: disable=W0702
+        log.exception("Failed to get config for %s, assuming none", name)
         return None
 
 
@@ -78,7 +78,7 @@ def get_development_config(settings, name):
     try:
         config_data = open(os.path.join(config_path, f"{name}.yml"), "rb").read()
         yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
-        return config_substitution(yaml_data, vault_secrets(yaml_data))
-    except Exception as e:  # pylint: disable=W0702
-        log.debug(f'Failed to get config {name=} with {settings=}\n\tGot error {str(e)}')
+        return config_substitution(yaml_data, vault_secrets(settings))
+    except:  # pylint: disable=W0702
+        log.exception("Failed to get config for %s, assuming none", name)
         return None
