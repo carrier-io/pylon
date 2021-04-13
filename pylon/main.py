@@ -304,7 +304,9 @@ def load_modules(context):
             module_pkg = importlib.import_module(module_metadata.get("module"))
             # Make module instance
             module_obj = module_pkg.Module(
-                storage.get_config(context.settings, module_name), module_root_path, context
+                settings=storage.get_config(context.settings, module_name),
+                root_path=module_root_path,
+                context=context
             )
             # Initialize module
             module_obj.init()
@@ -377,8 +379,9 @@ def load_development_modules(context):
             module_pkg = importlib.import_module(module_metadata.get("module"))
             # Make module instance
             module_obj = module_pkg.Module(
-                storage.get_development_config(context.settings, module_name),
-                module_root_path, context
+                settings=storage.get_development_config(context.settings, module_name),
+                root_path=module_root_path,
+                context=context
             )
             # Initialize module
             module_obj.init()
