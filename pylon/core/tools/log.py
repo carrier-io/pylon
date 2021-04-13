@@ -40,7 +40,7 @@ def init(level=logging.INFO):
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     # Disable SSL warnings
     urllib3.disable_warnings()
-    requests.packages.urllib3.disable_warnings()
+    requests.packages.urllib3.disable_warnings()  # pylint: disable=E1101
     # Disable additional logging
     logging.getLogger("pika").setLevel(logging.WARNING)
 

@@ -63,6 +63,7 @@ from redis import StrictRedis  # pylint: disable=E0401
 
 from pylon.core import constants
 from pylon.core.tools import log
+from pylon.core.tools import log_loki
 from pylon.core.tools import config
 from pylon.core.tools import module
 from pylon.core.tools import event
@@ -90,6 +91,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
     context.settings = settings
+    # Save global node name
+    context.node_name = settings.get("server", dict()).get("name", socket.gethostname())
+    # Enable Loki logging if requested in config
+    enable_loki_logging(context)
     # Register provider for template and resource loading from modules
     pkg_resources.register_loader_type(module.DataModuleLoader, module.DataModuleProvider)
     # Make ModuleManager instance
@@ -113,8 +118,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.url_prefix = settings.get("server", dict()).get("path", "/")
     while context.url_prefix.endswith("/"):
         context.url_prefix = context.url_prefix[:-1]
-    # Save global node name
-    context.node_name = settings.get("server", dict()).get("name", socket.gethostname())
     # Enable server-side sessions
     init_flask_sessions(context)
     # Make RpcManager instance
@@ -455,6 +458,21 @@ def enable_logging():
         log_level = logging.INFO
     #
     log.init(log_level)
+
+
+def enable_loki_logging(context):
+    """ Enable logging to Loki """
+    if "loki" not in context.settings:
+        return
+    #
+    if context.settings.get("loki").get("buffering", True):
+        LokiLogHandler = log_loki.CarrierLokiBufferedLogHandler
+    else:
+        LokiLogHandler = log_loki.CarrierLokiLogHandler
+    #
+    handler = LokiLogHandler(context)
+    handler.setFormatter(logging.getLogger("").handlers[0].formatter)
+    logging.getLogger("").addHandler(handler)
 
 
 def signal_sigterm(signal_num, stack_frame):
