@@ -324,22 +324,13 @@ def load_modules(context):
     return temporary_data_dirs
 
 
-def load_development_modules(context):
-    """ Load and enable platform modules in development mode """
-    #
-    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-        log.info("Running in development mode before reloader is started. Skipping module loading")
-        return list()
-    #
-    module_dir = context.settings["development"]["modules"]
-    log.info("Using module dir: %s", module_dir)
-    #
+def get_development_module_map(context) -> dict:
     module_map = dict()  # module_name -> (metadata, loader)
     #
     for module_name in storage.list_development_modules(context.settings):
         log.info("Found module: %s", module_name)
         #
-        module_path = os.path.join(module_dir, module_name)
+        module_path = os.path.join(context.settings["development"]["modules"], module_name)
         metadata_path = os.path.join(module_path, "metadata.json")
         #
         try:
@@ -355,47 +346,71 @@ def load_development_modules(context):
             module_map[module_name] = (module_metadata, module_loader)
         except:  # pylint: disable=W0702
             log.exception("Failed to prepare module: %s", module_name)
+    return module_map
+
+
+def enable_development_module(module_name, module_metadata, context):
+    # Get module metadata and loader
+    log.info(
+        "Initializing module: %s [%s]",
+        module_metadata.get("name", "N/A"),
+        module_metadata.get("version", "N/A"),
+    )
+    # Extract module data if needed
+    module_data_dir = os.path.join(context.settings["development"]["modules"], module_name)
+    module_root_path = os.path.join(
+        module_data_dir, module_metadata.get("module").replace(".", os.path.sep)
+    )
+    # Import module package
+    sys.path.insert(1, module_data_dir)
+    importlib.invalidate_caches()
+    module_pkg = importlib.import_module(module_metadata.get("module"))
+    # Make module instance
+    module_obj = module_pkg.Module(
+        settings=storage.get_development_config(context.settings, module_name),
+        root_path=module_root_path,
+        context=context
+    )
+    # Initialize module
+    module_obj.init()
+    # Finally done
+    context.module_manager.add_module(
+        module_name, module_root_path, module_metadata, module_obj
+    )
+
+
+def load_development_modules(context):
+    """ Load and enable platform modules in development mode """
     #
+    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        log.info("Running in development mode before reloader is started. Skipping module loading")
+        return list()
+    log.info("Using module dir: %s", context.settings["development"]["modules"])
+
+    module_map = get_development_module_map(context)
+
+    log.info("Enabling module: Market")
+    try:
+        module_metadata, _ = module_map.pop('market')
+        enable_development_module('market', module_metadata, context=context)
+        log.info("Initialized module: Market")
+        module_map = get_development_module_map(context)
+        del module_map['market']
+    except:  # pylint: disable=W0702
+        log.exception("Failed to initialize module: Market")
+
     module_order = dependency.resolve_depencies(module_map)
     log.debug("Module order: %s", module_order)
-    #
+
     temporary_data_dirs = list()
-    #
     for module_name in module_order:
         log.info("Enabling module: %s", module_name)
         try:
-            # Get module metadata and loader
-            module_metadata, module_loader = module_map[module_name]
-            log.info(
-                "Initializing module: %s [%s]",
-                module_metadata.get("name", "N/A"),
-                module_metadata.get("version", "N/A"),
-            )
-            # Extract module data if needed
-            module_data_dir = os.path.join(module_dir, module_name)
-            module_root_path = os.path.join(
-                module_data_dir, module_metadata.get("module").replace(".", os.path.sep)
-            )
-            # Import module package
-            sys.path.insert(1, module_data_dir)
-            importlib.invalidate_caches()
-            module_pkg = importlib.import_module(module_metadata.get("module"))
-            # Make module instance
-            module_obj = module_pkg.Module(
-                settings=storage.get_development_config(context.settings, module_name),
-                root_path=module_root_path,
-                context=context
-            )
-            # Initialize module
-            module_obj.init()
-            # Finally done
-            context.module_manager.add_module(
-                module_name, module_root_path, module_metadata, module_obj
-            )
+            module_metadata, _ = module_map[module_name]
+            enable_development_module(module_name, module_metadata, context=context)
             log.info("Initialized module: %s", module_name)
         except:  # pylint: disable=W0702
             log.exception("Failed to initialize module: %s", module_name)
-    #
     return temporary_data_dirs
 
 
@@ -430,7 +445,7 @@ def load_settings():
         return None
     #
     settings_seed_tag = settings_seed[:settings_seed.find(":")]
-    settings_seed_data = settings_seed[len(settings_seed_tag)+1:]
+    settings_seed_data = settings_seed[len(settings_seed_tag) + 1:]
     try:
         seed = importlib.import_module(f"pylon.core.seeds.{settings_seed_tag}")
         settings_data = seed.unseed(settings_seed_data)
