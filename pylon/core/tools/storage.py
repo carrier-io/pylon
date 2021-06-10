@@ -46,7 +46,7 @@ def list_development_modules(settings):
     modules_path = os.environ.get("MODULES_PATH", settings["development"]["modules"])
     for obj in os.listdir(modules_path):
         obj_path = os.path.join(modules_path, obj)
-        if os.path.isdir(obj_path) and not obj.startswith("."):
+        if os.path.isdir(obj_path) and not obj.startswith(".") and not obj.startswith('__pycache__'):
             modules.append(obj)
     return modules
 
