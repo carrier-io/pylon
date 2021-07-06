@@ -36,7 +36,7 @@ class DebugLogStream(io.RawIOBase):
 class GitManager:
     """ Action: clone git repository """
 
-    def __init__(self, config):
+    def __init__(self, config: Optional[dict] = None):
         # Patch dulwich to work without valid UID/GID
         repo.__original__get_default_identity = repo._get_default_identity  # pylint: disable=W0212
         repo._get_default_identity = self._patched_repo_get_default_identity  # pylint: disable=W0212
@@ -86,7 +86,7 @@ class GitManager:
             auth_args['username'] = self.config.get('username')
         if self.config.get("password"):
             auth_args['password'] = self.config.get('password')
-        if self.config.get('key', None) is not None:
+        if self.config.get('key'):
             auth_args["key_filename"] = self.config.get("key")
         if self.config.get("key_data"):
             key_obj = io.StringIO(self.config.get("key_data").replace("|", "\n"))
@@ -154,24 +154,3 @@ class GitManager:
         if delete_git_dir:
             log.info("Deleting .git directory")
             shutil.rmtree(os.path.join(target, ".git"))
-
-
-
-if __name__ == '__main__':
-    config = {
-        'source': 'https://github.com/carrier-io/theme.git',
-        'target': './tmp/',
-        # 'delete_git_dir': True
-        'branch': 'main'
-    }
-    # config = BigDict()
-    # Cloner.fill_config(config)
-    # print(config)
-    c = GitManager(config)
-    shutil.rmtree(config['target'])
-    c.clone(**config)
-    # from dulwich.repo import Repo
-    # from dulwich.client import TCPGitClient
-    # client = TCPGitClient(server_address, server_port)
-    # local = Repo.init("local", mkdir=True)
-    # remote_refs = client.fetch(b"/", local)
