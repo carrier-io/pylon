@@ -26,6 +26,8 @@
 
 import os
 
+from pylon.core.tools.git_manager import GitManager
+
 CORE_DEVELOPMENT_MODE = os.environ.get("CORE_DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
 
 if not CORE_DEVELOPMENT_MODE:
@@ -103,6 +105,11 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make EventManager instance
     event_manager = event.EventManager(context)
     context.event_manager = event_manager
+
+    # Initiate Dulwich Git Manager
+    git_manager = GitManager(settings.get('git_manager'))
+    context.git_manager = git_manager
+
     # Make app instance
     log.info("Creating Flask application")
     app = flask.Flask("project")
