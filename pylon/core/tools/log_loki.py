@@ -255,3 +255,18 @@ class PeriodicFlush(threading.Thread):  # pylint: disable=R0903
         while True:
             time.sleep(self.interval)
             self.handler.flush()
+
+
+def enable_loki_logging(context):
+    """ Enable logging to Loki """
+    if "loki" not in context.settings:
+        return
+    #
+    if context.settings.get("loki").get("buffering", True):
+        LokiLogHandler = CarrierLokiBufferedLogHandler
+    else:
+        LokiLogHandler = CarrierLokiLogHandler
+    #
+    handler = LokiLogHandler(context)
+    handler.setFormatter(logging.getLogger("").handlers[0].formatter)
+    logging.getLogger("").addHandler(handler)
