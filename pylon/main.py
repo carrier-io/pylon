@@ -2,7 +2,7 @@
 # coding=utf-8
 # pylint: disable=C0411,C0413
 
-#   Copyright 2020 getcarrier.io
+#   Copyright 2020-2021 getcarrier.io
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -64,70 +64,63 @@ from pylon.core.tools import server
 from pylon.core.tools import session
 from pylon.core.tools import traefik
 from pylon.core.tools import dependency
+from pylon.core.tools import git_manager
+
+from pylon.core.tools.signal import signal_sigterm
 from pylon.core.tools.context import Context
-from pylon.core.tools.git_manager import GitManager
 
 
 def main():  # pylint: disable=R0912,R0914,R0915
     """ Entry point """
     # Register signal handling
     signal.signal(signal.SIGTERM, signal_sigterm)
-    # Enable logging
+    # Enable logging and say hello
     log.enable_logging()
-    # Say hello
-    log.info("Starting plugin-based Galloper core")
+    log.info("Starting plugin-based Carrier core")
     # Make context holder
     context = Context()
     # Save debug status
     context.debug = CORE_DEVELOPMENT_MODE
     # Load settings from seed
     log.info("Loading and parsing settings")
-    settings = seed.load_settings()
-    if not settings:
+    context.settings = seed.load_settings()
+    if not context.settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
-    context.settings = settings
     # Save global node name
-    context.node_name = settings.get("server", dict()).get("name", socket.gethostname())
+    context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
     # Enable Loki logging if requested in config
     log_loki.enable_loki_logging(context)
     # Register provider for template and resource loading from modules
     pkg_resources.register_loader_type(module.DataModuleLoader, module.DataModuleProvider)
     # Make ModuleManager instance
-    module_manager = module.ModuleManager(settings)
-    context.module_manager = module_manager
+    context.module_manager = module.ModuleManager(context.settings)
     # Make EventManager instance
-    event_manager = event.EventManager(context)
-    context.event_manager = event_manager
+    context.event_manager = event.EventManager(context)
     # Initiate Dulwich Git Manager
-    git_manager = GitManager(settings.get('git_manager'))
-    context.git_manager = git_manager
+    context.git_manager = git_manager.GitManager(context.settings.get('git_manager'))
     # Make app instance
     log.info("Creating Flask application")
-    app = flask.Flask("project")
-    if settings.get("server", dict()).get("proxy", False):
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-    context.app = app
+    context.app = flask.Flask("project")
+    if context.settings.get("server", dict()).get("proxy", False):
+        context.app.wsgi_app = ProxyFix(context.app.wsgi_app, x_proto=1, x_host=1)
     # Make API instance
     log.info("Creating API instance")
-    api = Api(app, catch_all_404s=True)
-    context.api = api
+    context.api = Api(context.app, catch_all_404s=True)
     # Set application settings
-    app.config["CONTEXT"] = context
-    app.config.from_mapping(settings.get("application", dict()))
+    context.app.config["CONTEXT"] = context
+    context.app.config.from_mapping(context.settings.get("application", dict()))
     # Save global URL prefix to context. May merge with traefik rule in future
-    context.url_prefix = settings.get("server", dict()).get("path", "/")
+    context.url_prefix = context.settings.get("server", dict()).get("path", "/")
     while context.url_prefix.endswith("/"):
         context.url_prefix = context.url_prefix[:-1]
     # Enable server-side sessions
     session.init_flask_sessions(context)
     # Make RpcManager instance
-    rpc_manager = rpc.RpcManager(context)
-    context.rpc_manager = rpc_manager
+    context.rpc_manager = rpc.RpcManager(context)
     # Make SlotManager instance
-    slot_manager = slot.SlotManager(context)
-    context.slot_manager = slot_manager
-    app.context_processor(slot.template_slot_processor(context))
+    context.slot_manager = slot.SlotManager(context)
+    context.app.context_processor(slot.template_slot_processor(context))
     # Load and initialize modules
     if not context.debug:
         temporary_data_dirs = load_modules(context)
@@ -143,8 +136,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         # Unregister traefik route
         traefik.unregister_traefik_route(context)
         # De-init modules
-        for module_name in module_manager.modules:
-            _, _, module_obj = module_manager.get_module(module_name)
+        for module_name in context.module_manager.modules:
+            _, _, module_obj = context.module_manager.get_module(module_name)
             module_obj.deinit()
         # Delete module data dirs
         for directory in temporary_data_dirs:
@@ -318,11 +311,6 @@ def load_development_modules(context):
         except:  # pylint: disable=W0702
             log.exception("Failed to initialize module: %s", module_name)
     return temporary_data_dirs
-
-
-def signal_sigterm(signal_num, stack_frame):
-    """ SIGTERM signal handler: for clean and fast docker stop/restart """
-    raise SystemExit
 
 
 if __name__ == "__main__":
