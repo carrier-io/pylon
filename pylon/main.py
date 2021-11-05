@@ -39,14 +39,8 @@ if not CORE_DEVELOPMENT_MODE:
 # Normal imports and code below
 #
 
-import sys
-import json
-import shutil
 import socket
 import signal
-import tempfile
-import importlib
-import pkg_resources
 
 import flask  # pylint: disable=E0401
 from flask_restful import Api  # pylint: disable=E0401
@@ -56,14 +50,12 @@ from pylon.core.tools import log
 from pylon.core.tools import log_loki
 from pylon.core.tools import module
 from pylon.core.tools import event
-from pylon.core.tools import storage
 from pylon.core.tools import seed
 from pylon.core.tools import rpc
 from pylon.core.tools import slot
 from pylon.core.tools import server
 from pylon.core.tools import session
 from pylon.core.tools import traefik
-from pylon.core.tools import dependency
 from pylon.core.tools import git_manager
 
 from pylon.core.tools.signal import signal_sigterm
@@ -91,10 +83,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
     # Enable Loki logging if requested in config
     log_loki.enable_loki_logging(context)
-    # Register provider for template and resource loading from modules
-    pkg_resources.register_loader_type(module.DataModuleLoader, module.DataModuleProvider)
     # Make ModuleManager instance
-    context.module_manager = module.ModuleManager(context.settings)
+    context.module_manager = module.ModuleManager(context)
     # Make EventManager instance
     context.event_manager = event.EventManager(context)
     # Initiate Dulwich Git Manager
@@ -120,12 +110,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.rpc_manager = rpc.RpcManager(context)
     # Make SlotManager instance
     context.slot_manager = slot.SlotManager(context)
-    context.app.context_processor(slot.template_slot_processor(context))
     # Load and initialize modules
-    if not context.debug:
-        temporary_data_dirs = load_modules(context)
-    else:
-        temporary_data_dirs = load_development_modules(context)
+    context.module_manager.init_modules()
     # Register Traefik route via Redis KV
     traefik.register_traefik_route(context)
     # Run WSGI server
@@ -136,181 +122,9 @@ def main():  # pylint: disable=R0912,R0914,R0915
         # Unregister traefik route
         traefik.unregister_traefik_route(context)
         # De-init modules
-        for module_name in context.module_manager.modules:
-            _, _, module_obj = context.module_manager.get_module(module_name)
-            module_obj.deinit()
-        # Delete module data dirs
-        for directory in temporary_data_dirs:
-            log.info("Deleting temporary data directory: %s", directory)
-            try:
-                shutil.rmtree(directory)
-            except:  # pylint: disable=W0702
-                log.exception("Failed to delete, skipping")
+        context.module_manager.deinit_modules()
     # Exit
     log.info("Exiting")
-
-
-def load_modules(context):
-    """ Load and enable platform modules """
-    #
-    module_map = dict()  # module_name -> (metadata, loader)
-    #
-    for module_name in storage.list_modules(context.settings):
-        log.info("Found module: %s", module_name)
-        module_data = storage.get_module(context.settings, module_name)
-        if not module_data:
-            log.error("Failed to get module data, skipping")
-            continue
-        try:
-            # Make loader for this module
-            module_loader = module.DataModuleLoader(module_data)
-            # Load module metadata
-            if "metadata.json" not in module_loader.storage_files:
-                log.error("No module metadata, skipping")
-                continue
-            with module_loader.storage.open("metadata.json", "r") as file:
-                module_metadata = json.load(file)
-            # Add to module map
-            module_map[module_name] = (module_metadata, module_loader)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to prepare module: %s", module_name)
-    #
-    module_order = dependency.resolve_depencies(module_map)
-    log.debug("Module order: %s", module_order)
-    #
-    temporary_data_dirs = list()
-    #
-    for module_name in module_order:
-        log.info("Enabling module: %s", module_name)
-        try:
-            # Get module metadata and loader
-            module_metadata, module_loader = module_map[module_name]
-            log.info(
-                "Initializing module: %s [%s]",
-                module_metadata.get("name", "N/A"),
-                module_metadata.get("version", "N/A"),
-            )
-            # Extract module data if needed
-            if module_metadata.get("extract", False):
-                module_data_dir = tempfile.mkdtemp()
-                temporary_data_dirs.append(module_data_dir)
-                module_loader.storage.extractall(module_data_dir)
-                module_root_path = os.path.join(
-                    module_data_dir, module_metadata.get("module").replace(".", os.path.sep)
-                )
-            else:
-                module_root_path = None
-            # Import module package
-            sys.meta_path.insert(0, module_loader)
-            importlib.invalidate_caches()
-            module_pkg = importlib.import_module(module_metadata.get("module"))
-            # Make module instance
-            module_obj = module_pkg.Module(
-                settings=storage.get_config(context.settings, module_name),
-                root_path=module_root_path,
-                context=context
-            )
-            # Initialize module
-            module_obj.init()
-            # Finally done
-            context.module_manager.add_module(
-                module_name, module_root_path, module_metadata, module_obj
-            )
-            log.info("Initialized module: %s", module_name)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to initialize module: %s", module_name)
-    #
-    return temporary_data_dirs
-
-
-def get_development_module_map(context) -> dict:
-    module_map = dict()  # module_name -> (metadata, loader)
-    #
-    for module_name in storage.list_development_modules(context.settings):
-        log.info("Found module: %s", module_name)
-        #
-        module_path = os.path.join(context.settings["development"]["modules"], module_name)
-        metadata_path = os.path.join(module_path, "metadata.json")
-        #
-        try:
-            # Make loader for this module
-            module_loader = None
-            # Load module metadata
-            if not os.path.exists(metadata_path):
-                log.error("No module metadata, skipping")
-                continue
-            with open(metadata_path, "r") as file:
-                module_metadata = json.load(file)
-            # Add to module map
-            module_map[module_name] = (module_metadata, module_loader)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to prepare module: %s", module_name)
-    return module_map
-
-
-def enable_development_module(module_name, module_metadata, context):
-    # Get module metadata and loader
-    log.info(
-        "Initializing module: %s [%s]",
-        module_metadata.get("name", "N/A"),
-        module_metadata.get("version", "N/A"),
-    )
-    # Extract module data if needed
-    module_data_dir = os.path.join(context.settings["development"]["modules"], module_name)
-    module_root_path = os.path.join(
-        module_data_dir, module_metadata.get("module").replace(".", os.path.sep)
-    )
-    # Import module package
-    sys.path.insert(1, module_data_dir)
-    importlib.invalidate_caches()
-    module_pkg = importlib.import_module(module_metadata.get("module"))
-    # Make module instance
-    module_obj = module_pkg.Module(
-        settings=storage.get_development_config(context.settings, module_name),
-        root_path=module_root_path,
-        context=context
-    )
-    # Initialize module
-    module_obj.init()
-    # Finally done
-    context.module_manager.add_module(
-        module_name, module_root_path, module_metadata, module_obj
-    )
-
-
-def load_development_modules(context):
-    """ Load and enable platform modules in development mode """
-    #
-    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-        log.info("Running in development mode before reloader is started. Skipping module loading")
-        return list()
-    log.info("Using module dir: %s", context.settings["development"]["modules"])
-
-    module_map = get_development_module_map(context)
-
-    log.info("Enabling module: Market")
-    try:
-        module_metadata, _ = module_map.pop('market')
-        enable_development_module('market', module_metadata, context=context)
-        log.info("Initialized module: Market")
-        module_map = get_development_module_map(context)
-        del module_map['market']
-    except:  # pylint: disable=W0702
-        log.exception("Failed to initialize module: Market")
-
-    module_order = dependency.resolve_depencies(module_map)
-    log.debug("Module order: %s", module_order)
-
-    temporary_data_dirs = list()
-    for module_name in module_order:
-        log.info("Enabling module: %s", module_name)
-        try:
-            module_metadata, _ = module_map[module_name]
-            enable_development_module(module_name, module_metadata, context=context)
-            log.info("Initialized module: %s", module_name)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to initialize module: %s", module_name)
-    return temporary_data_dirs
 
 
 if __name__ == "__main__":
