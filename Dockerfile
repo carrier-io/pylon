@@ -1,7 +1,7 @@
 FROM golang:1.13
 WORKDIR /go/src/
 
-COPY project/core/tools/minio/minio_madmin.go .
+COPY pylon/core/tools/minio/minio_madmin.go .
 RUN set -x \
   && go get -d -v github.com/minio/minio/pkg/madmin \
   && go build -o minio_madmin.so -buildmode=c-shared minio_madmin.go
@@ -14,6 +14,6 @@ RUN set -x \
   && pip install --no-cache-dir -r requirements.txt \
   && rm -f requirements.txt
 
-COPY project/ ./
+COPY pylon/ ./
 COPY --from=0 /go/src/minio_madmin.so core/tools/minio/
 CMD [ "python", "./main.py" ]
