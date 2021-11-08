@@ -16,4 +16,7 @@ RUN set -x \
 
 COPY pylon/ ./
 # COPY --from=0 /go/src/minio_madmin.so core/tools/minio/
-CMD [ "python", "./main.py" ]
+RUN set -x \
+  && pip install --no-cache-dir .
+
+CMD [ "python", "-m", "pylon.main" ]
