@@ -9,13 +9,9 @@
 FROM python:3.8
 WORKDIR /usr/src/app
 
-COPY requirements.txt ./
-RUN set -x \
-  && pip install --no-cache-dir -r requirements.txt \
-  && rm -f requirements.txt
-
 COPY ./ ./
 # COPY --from=0 /go/src/minio_madmin.so pylon/core/tools/minio/
+
 RUN set -x \
   && pip install --no-cache-dir .
 
