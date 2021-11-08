@@ -14,8 +14,8 @@ RUN set -x \
   && pip install --no-cache-dir -r requirements.txt \
   && rm -f requirements.txt
 
-COPY pylon/ ./
-# COPY --from=0 /go/src/minio_madmin.so core/tools/minio/
+COPY ./ ./
+# COPY --from=0 /go/src/minio_madmin.so pylon/core/tools/minio/
 RUN set -x \
   && pip install --no-cache-dir .
 
