@@ -9,10 +9,11 @@
 FROM python:3.8
 WORKDIR /usr/src/app
 
-COPY ./ ./
-# COPY --from=0 /go/src/minio_madmin.so pylon/core/tools/minio/
+COPY ./ ./pylon
+# COPY --from=0 /go/src/minio_madmin.so pylon/pylon/core/tools/minio/
 
 RUN set -x \
-  && pip install --no-cache-dir .
+  && pip install --no-cache-dir ./pylon \
+  && rm -r ./pylon
 
 CMD [ "python", "-m", "pylon.main" ]
