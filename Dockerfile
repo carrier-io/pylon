@@ -1,4 +1,4 @@
-FROM golang:1.13
+FROM golang:1.16
 WORKDIR /go/src/
 
 COPY pylon/core/tools/minio/minio_madmin.go .
