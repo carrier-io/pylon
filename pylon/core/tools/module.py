@@ -35,6 +35,8 @@ from pylon.core.tools import dependency
 class ModuleModel:
     """ Module model """
 
+    # def __init__(self, context, descriptor):
+
     def init(self):
         """ Initialize module """
         raise NotImplementedError()
@@ -42,6 +44,15 @@ class ModuleModel:
     def deinit(self):
         """ De-initialize module """
         raise NotImplementedError()
+
+
+class ModuleDescriptior:
+    """ Module descriptor """
+
+    def __init__(self, context, settings, root_path):
+        self.context = context
+        self.settings = settings
+        self.root_path = root_path
 
 
 class ModuleManager:

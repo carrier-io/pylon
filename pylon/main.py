@@ -91,7 +91,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.git_manager = git_manager.GitManager(context.settings.get('git_manager'))
     # Make app instance
     log.info("Creating Flask application")
-    context.app = flask.Flask("project")
+    context.app = flask.Flask("pylon")
     if context.settings.get("server", dict()).get("proxy", False):
         context.app.wsgi_app = ProxyFix(context.app.wsgi_app, x_proto=1, x_host=1)
     # Make API instance
