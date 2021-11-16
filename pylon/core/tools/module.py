@@ -23,15 +23,19 @@ import sys
 import json
 import types
 import shutil
+import hashlib
 import zipfile
 import tempfile
 import posixpath
 import importlib
+import subprocess
 import pkg_resources
 
+import yaml  # pylint: disable=E0401
+
 from pylon.core.tools import log
-from pylon.core.tools import storage
 from pylon.core.tools import dependency
+from pylon.core.tools.config import config_substitution, vault_secrets
 
 
 class ModuleModel:
@@ -48,13 +52,43 @@ class ModuleModel:
         raise NotImplementedError()
 
 
-class ModuleDescriptior:
+class ModuleDescriptor:
     """ Module descriptor """
 
-    def __init__(self, context, settings, root_path):
+    def __init__(self, context, name, loader, metadata, requirements):
         self.context = context
-        self.settings = settings
-        self.root_path = root_path
+        self.name = name
+        self.loader = loader
+        self.metadata = metadata
+        self.requirements = requirements
+        #
+        self.path = self.loader.get_local_path()
+        self.config = None
+        #
+        self.requirements_base = None
+        self.requirements_path = None
+        #
+        self.module = None
+
+    def load_config(self):
+        """ Load custom (or default) configuration """
+        if self.context.module_manager.providers["config"].config_data_exists(self.name):
+            config_data = self.context.module_manager.providers["config"].get_config_data(self.name)
+        elif self.loader.has_file("config.yml"):
+            config_data = self.loader.get_data("config.yml")
+        else:
+            config_data = b""
+        #
+        yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
+        if yaml_data is None:
+            yaml_data = dict()
+        #
+        self.config = config_substitution(yaml_data, vault_secrets(self.context.settings))
+
+    def save_config(self):
+        """ Save custom config """
+        config_data = yaml.dump(self.config).encode()
+        self.context.module_manager.providers["config"].add_config_data(self.name, config_data)
 
     def make_blueprint(self):
         """ Make configured Blueprint instance """
@@ -68,10 +102,10 @@ class ModuleManager:
 
     def __init__(self, context):
         self.context = context
-        self.settings = self.context.settings
-        #
+        self.settings = self.context.settings.get("modules", dict())
+        self.providers = dict()  # object_type -> provider_instance
         self.modules = dict()  # module_name -> module_descriptor
-        self.temporary_data_dirs = list()
+        self.temporary_objects = list()
 
     def init_modules(self):
         """ Load and init modules """
@@ -87,192 +121,240 @@ class ModuleManager:
         if "plugins" not in sys.modules:
             sys.modules["plugins"] = types.ModuleType("plugins")
             sys.modules["plugins"].__path__ = []
+        # Make providers
+        self._init_providers()
+        # TODO: preload
+        # Create loaders for target modules
+        module_meta_map = dict()  # module_name -> (metadata, loader)
+        for module_name in self.providers["plugins"].list_plugins(exclude=list(self.modules)):
+            module_loader = self.providers["plugins"].get_plugin_loader(module_name)
+            #
+            if not module_loader.has_file("metadata.json"):
+                log.error("Module has no metadata: %s", module_name)
+                continue
+            #
+            module_metadata = json.loads(module_loader.get_data("metadata.json"))
+            #
+            if module_loader.has_directory("static") or module_metadata.get("extract", False):
+                module_loader = module_loader.get_local_loader(self.temporary_objects)
+            #
+            module_meta_map[module_name] = (module_metadata, module_loader)
+        # Resolve module load order
+        module_order = dependency.resolve_depencies(module_meta_map)
+        log.debug("Module order: %s", module_order)
+        # Make module descriptors
+        module_descriptors = list()
+        for module_name in module_order:
+            module_metadata, module_loader = module_meta_map[module_name]
+            # Get module requirements
+            if module_loader.has_file("requirements.txt"):
+                module_requirements = module_loader.get_data("requirements.txt").decode()
+            else:
+                module_requirements = ""
+            # Make descriptor
+            module_descriptor = ModuleDescriptor(
+                self.context, module_name, module_loader, module_metadata, module_requirements
+            )
+            # Preload config
+            module_descriptor.load_config()
+            #
+            module_descriptors.append(module_descriptor)
+        # Install/get/activate requirements and initialize module
+        cache_hash_chunks = list()
+        module_site_paths = list()
+        module_constraint_paths = list()
         #
-        #
-        if not self.context.debug:
-            self.temporary_data_dirs = load_modules(self.context)
-        else:
-            self.temporary_data_dirs = load_development_modules(self.context)
+        for module_descriptor in module_descriptors:
+            requirements_hash = hashlib.sha256(module_descriptor.requirements.encode()).hexdigest()
+            cache_hash_chunks.append(requirements_hash)
+            cache_hash = hashlib.sha256("_".join(cache_hash_chunks).encode()).hexdigest()
+            #
+            module_name = module_descriptor.name
+            #
+            requirements_txt_fd, requirements_txt = tempfile.mkstemp(".txt")
+            self.temporary_objects.append(requirements_txt)
+            os.close(requirements_txt_fd)
+            #
+            with open(requirements_txt, "wb") as file:
+                file.write(module_descriptor.requirements.encode())
+            #
+            if self.providers["requirements"].requirements_exist(module_name, cache_hash):
+                requirements_base = \
+                    self.providers["requirements"].get_requirements(
+                        module_name, cache_hash, self.temporary_objects,
+                    )
+            else:
+                requirements_base = tempfile.mkdtemp()
+                self.temporary_objects.append(requirements_base)
+                #
+                self.install_requirements(
+                    requirements_path=requirements_txt,
+                    target_site_base=requirements_base,
+                    additional_site_paths=module_site_paths,
+                    constraint_paths=module_constraint_paths,
+                )
+                #
+                self.providers["requirements"].add_requirements(
+                    module_name, cache_hash, requirements_base,
+                )
+            #
+            requirements_path = self.get_user_site_path(requirements_base)
+            module_site_paths.append(requirements_path)
+            #
+            module_descriptor.requirements_base = requirements_base
+            module_descriptor.requirements_path = requirements_path
+            #
+            requirements_mode = self.settings["requirements"].get("mode", "relaxed")
+            if requirements_mode == "constrained":
+                module_constraint_paths.append(requirements_txt)
+            elif requirements_mode == "strict":
+                frozen_module_requirements = self.freeze_site_requirements(
+                    target_site_base=requirements_base,
+                    requirements_path=requirements_txt,
+                    additional_site_paths=module_site_paths,
+                )
+                #
+                frozen_requirements_fd, frozen_requirements = tempfile.mkstemp(".txt")
+                self.temporary_objects.append(frozen_requirements)
+                os.close(frozen_requirements_fd)
+                #
+                with open(frozen_requirements, "wb") as file:
+                    file.write(frozen_module_requirements.encode())
+                #
+                module_constraint_paths.append(frozen_requirements)
+            #
+            self.activate_path(module_descriptor.requirements_path)
+            self.activate_loader(module_descriptor.loader)
+            #
+            module_pkg = importlib.import_module(f"plugins.{module_descriptor.name}.module")
+            module_obj = module_pkg.Module(
+                context=self.context,
+                descriptor=module_descriptor,
+            )
+            #
+            module_descriptor.module = module_obj
+            #
+            module_obj.init()
+            #
+            self.modules[module_descriptor.name] = module_descriptor
 
     def deinit_modules(self):
         """ De-init and unload modules """
-        for module_name in self.modules:
-            _, _, module_obj = self.get_module(module_name)
-            module_obj.deinit()
-        # Delete module data dirs
-        for directory in self.temporary_data_dirs:
-            log.info("Deleting temporary data directory: %s", directory)
+        for _, module_descriptor in self.modules.items():
             try:
-                shutil.rmtree(directory)
+                module_descriptor.module.deinit()
             except:  # pylint: disable=W0702
-                log.exception("Failed to delete, skipping")
-
-
-def load_modules(context):
-    """ Load and enable platform modules """
-    #
-    module_map = dict()  # module_name -> (metadata, loader)
-    #
-    for module_name in storage.list_modules(context.settings):
-        log.info("Found module: %s", module_name)
-        module_data = storage.get_module(context.settings, module_name)
-        if not module_data:
-            log.error("Failed to get module data, skipping")
-            continue
-        try:
-            # Make loader for this module
-            module_loader = DataModuleLoader(module_data)
-            # Load module metadata
-            if "metadata.json" not in module_loader.storage_files:
-                log.error("No module metadata, skipping")
-                continue
-            with module_loader.storage.open("metadata.json", "r") as file:
-                module_metadata = json.load(file)
-            # Add to module map
-            module_map[module_name] = (module_metadata, module_loader)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to prepare module: %s", module_name)
-    #
-    module_order = dependency.resolve_depencies(module_map)
-    log.debug("Module order: %s", module_order)
-    #
-    temporary_data_dirs = list()
-    #
-    for module_name in module_order:
-        log.info("Enabling module: %s", module_name)
-        try:
-            # Get module metadata and loader
-            module_metadata, module_loader = module_map[module_name]
-            log.info(
-                "Initializing module: %s [%s]",
-                module_metadata.get("name", "N/A"),
-                module_metadata.get("version", "N/A"),
-            )
-            # Extract module data if needed
-            if module_metadata.get("extract", False):
-                module_data_dir = tempfile.mkdtemp()
-                temporary_data_dirs.append(module_data_dir)
-                module_loader.storage.extractall(module_data_dir)
-                module_root_path = os.path.join(
-                    module_data_dir, module_metadata.get("module").replace(".", os.path.sep)
-                )
-            else:
-                module_root_path = None
-            # Import module package
-            sys.meta_path.insert(0, module_loader)
-            importlib.invalidate_caches()
-            module_pkg = importlib.import_module(module_metadata.get("module"))
-            # Make module instance
-            module_obj = module_pkg.Module(
-                settings=storage.get_config(context.settings, module_name),
-                root_path=module_root_path,
-                context=context
-            )
-            # Initialize module
-            module_obj.init()
-            # Finally done
-            context.module_manager.add_module(
-                module_name, module_root_path, module_metadata, module_obj
-            )
-            log.info("Initialized module: %s", module_name)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to initialize module: %s", module_name)
-    #
-    return temporary_data_dirs
-
-
-def get_development_module_map(context) -> dict:
-    """ Dev """
-    module_map = dict()  # module_name -> (metadata, loader)
-    #
-    for module_name in storage.list_development_modules(context.settings):
-        log.info("Found module: %s", module_name)
+                pass
         #
-        module_path = os.path.join(context.settings["development"]["modules"], module_name)
-        metadata_path = os.path.join(module_path, "metadata.json")
+        self._deinit_providers()
         #
-        try:
-            # Make loader for this module
-            module_loader = None
-            # Load module metadata
-            if not os.path.exists(metadata_path):
-                log.error("No module metadata, skipping")
-                continue
-            with open(metadata_path, "r") as file:
-                module_metadata = json.load(file)
-            # Add to module map
-            module_map[module_name] = (module_metadata, module_loader)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to prepare module: %s", module_name)
-    return module_map
+        for obj in self.temporary_objects:
+            try:
+                if os.path.isdir(obj):
+                    shutil.rmtree(obj)
+                else:
+                    os.remove(obj)
+            except:  # pylint: disable=W0702
+                pass
 
+    def _init_providers(self):
+        for key in ["plugins", "requirements", "config"]:
+            log.info("Initializing %s provider", key)
+            #
+            if key not in self.settings or \
+                    "provider" not in self.settings[key] or \
+                    "type" not in self.settings[key]["provider"]:
+                raise RuntimeError(f"No {key} provider set in config")
+            #
+            provider_config = self.settings[key]["provider"].copy()
+            provider_type = provider_config.pop("type")
+            #
+            provider = importlib.import_module(
+                f"pylon.core.providers.{key}.{provider_type}"
+            ).Provider(self.context, provider_config)
+            provider.init()
+            #
+            self.providers[key] = provider
 
-def enable_development_module(module_name, module_metadata, context):
-    """ Dev """
-    # Get module metadata and loader
-    log.info(
-        "Initializing module: %s [%s]",
-        module_metadata.get("name", "N/A"),
-        module_metadata.get("version", "N/A"),
-    )
-    # Extract module data if needed
-    module_data_dir = os.path.join(context.settings["development"]["modules"], module_name)
-    module_root_path = os.path.join(
-        module_data_dir, module_metadata.get("module").replace(".", os.path.sep)
-    )
-    # Import module package
-    sys.path.insert(1, module_data_dir)
-    importlib.invalidate_caches()
-    module_pkg = importlib.import_module(module_metadata.get("module"))
-    # Make module instance
-    module_obj = module_pkg.Module(
-        settings=storage.get_development_config(context.settings, module_name),
-        root_path=module_root_path,
-        context=context
-    )
-    # Initialize module
-    module_obj.init()
-    # Finally done
-    context.module_manager.add_module(
-        module_name, module_root_path, module_metadata, module_obj
-    )
+    def _deinit_providers(self):
+        for key in ["plugins", "requirements", "config"]:
+            log.info("Deinitializing %s provider", key)
+            #
+            self.providers[key].deinit()
 
+    @staticmethod
+    def activate_loader(loader):
+        """ Activate loader """
+        sys.meta_path.insert(0, loader)
+        importlib.invalidate_caches()
 
-def load_development_modules(context):
-    """ Load and enable platform modules in development mode """
-    #
-    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-        log.info("Running in development mode before reloader is started. Skipping module loading")
-        return list()
-    log.info("Using module dir: %s", context.settings["development"]["modules"])
+    @staticmethod
+    def activate_path(path):
+        """ Activate path """
+        sys.path.insert(0, path)
+        importlib.invalidate_caches()
 
-    module_map = get_development_module_map(context)
+    @staticmethod
+    def get_user_site_path(base):
+        """ Get site path for specific site base """
+        env = os.environ.copy()
+        env["PYTHONUSERBASE"] = base
+        #
+        return subprocess.check_output(
+            [sys.executable, "-m", "site", "--user-site"],
+            env=env,
+        ).decode().strip()
 
-    log.info("Enabling module: Market")
-    try:
-        module_metadata, _ = module_map.pop('market')
-        enable_development_module('market', module_metadata, context=context)
-        log.info("Initialized module: Market")
-        module_map = get_development_module_map(context)
-        del module_map['market']
-    except:  # pylint: disable=W0702
-        log.exception("Failed to initialize module: Market")
+    @staticmethod
+    def install_requirements(
+            requirements_path, target_site_base, additional_site_paths=None, constraint_paths=None,
+        ):
+        """ Install requirements into target site """
+        if constraint_paths is None:
+            constraint_paths = list()
+        #
+        env = os.environ.copy()
+        env["PYTHONUSERBASE"] = target_site_base
+        #
+        if additional_site_paths is not None:
+            env["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
+        #
+        c_args = []
+        for const in constraint_paths:
+            c_args.append("-c")
+            c_args.append(const)
+        #
+        return subprocess.check_call(
+            [
+                sys.executable,
+                "-m", "pip", "install",
+                "--user", "--no-warn-script-location",
+            ] + c_args + [
+                "-r", requirements_path,
+            ],
+            env=env,
+        )
 
-    module_order = dependency.resolve_depencies(module_map)
-    log.debug("Module order: %s", module_order)
-
-    temporary_data_dirs = list()
-    for module_name in module_order:
-        log.info("Enabling module: %s", module_name)
-        try:
-            module_metadata, _ = module_map[module_name]
-            enable_development_module(module_name, module_metadata, context=context)
-            log.info("Initialized module: %s", module_name)
-        except:  # pylint: disable=W0702
-            log.exception("Failed to initialize module: %s", module_name)
-    return temporary_data_dirs
-
-
+    @staticmethod
+    def freeze_site_requirements(
+            target_site_base, requirements_path=None, additional_site_paths=None
+        ):
+        """ Get installed requirements (a.k.a pip freeze) """
+        env = os.environ.copy()
+        env["PYTHONUSERBASE"] = target_site_base
+        #
+        if additional_site_paths is not None:
+            env["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
+        #
+        opt_args = []
+        if requirements_path is not None:
+            opt_args.append("-r")
+            opt_args.append(requirements_path)
+        #
+        return subprocess.check_output(
+            [sys.executable, "-m", "pip", "freeze", "--user"] + opt_args,
+            env=env,
+        ).decode()
 
 
 class LocalModuleLoader(importlib.machinery.PathFinder):
@@ -320,9 +402,21 @@ class LocalModuleLoader(importlib.machinery.PathFinder):
         except BaseException as exc:
             raise FileNotFoundError(f"Resource not found: {path}") from exc
 
+    def has_file(self, path):
+        """ Check if file is present in module """
+        return os.path.isfile(os.path.join(self.module_abspath, path))
+
     def has_directory(self, path):
         """ Check if directory is present in module """
         return os.path.isdir(os.path.join(self.module_abspath, path))
+
+    def get_local_path(self):
+        """ Get path to module data """
+        return self.module_abspath
+
+    def get_local_loader(self, temporary_objects=None):
+        """ Get LocalModuleLoader from this module data """
+        return self
 
 
 class DataModuleLoader(importlib.abc.MetaPathFinder):
@@ -393,6 +487,13 @@ class DataModuleLoader(importlib.abc.MetaPathFinder):
         except BaseException as exc:
             raise FileNotFoundError(f"Resource not found: {path}") from exc
 
+    def has_file(self, path):
+        """ Check if file is present in module """
+        if os.sep != posixpath.sep:
+            path = path.replace(os.sep, posixpath.sep)
+        #
+        return path in self.storage_files
+
     def has_directory(self, path):
         """ Check if directory is present in module """
         if os.sep != posixpath.sep:
@@ -409,6 +510,18 @@ class DataModuleLoader(importlib.abc.MetaPathFinder):
         return DataModuleResourceReader(
             self, posixpath.sep.join(name_components[len(self.module_name_components):])
         )
+
+    def get_local_path(self):
+        """ Get path to module data """
+        return None
+
+    def get_local_loader(self, temporary_objects=None):
+        """ Get LocalModuleLoader from this module data """
+        local_path = tempfile.mkdtemp()
+        if temporary_objects is not None:
+            temporary_objects.append(local_path)
+        self.storage.extractall(local_path)
+        return LocalModuleLoader(self.module_name, local_path)
 
 
 class DataModuleProvider(pkg_resources.NullProvider):  # pylint: disable=W0223
