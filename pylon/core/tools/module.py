@@ -202,7 +202,7 @@ class ModuleManager:
             preload_module_meta_map, preload_module_order,
         )
         # Install/get/activate requirements and initialize preload modules
-        self._activate_modules(preload_module_descriptors)
+        preloaded_items = self._activate_modules(preload_module_descriptors)
         # Create loaders for target modules
         target_module_meta_map = self._make_target_module_meta_map()
         # Resolve target module load order
@@ -214,7 +214,7 @@ class ModuleManager:
             target_module_meta_map, target_module_order,
         )
         # Install/get/activate requirements and initialize target modules
-        self._activate_modules(target_module_descriptors)
+        self._activate_modules(target_module_descriptors, preloaded_items)
 
     def _make_preload_module_meta_map(self):
         module_meta_map = dict()  # module_name -> (metadata, loader)
@@ -300,10 +300,13 @@ class ModuleManager:
         #
         return module_descriptors
 
-    def _activate_modules(self, module_descriptors):
-        cache_hash_chunks = list()
-        module_site_paths = list()
-        module_constraint_paths = list()
+    def _activate_modules(self, module_descriptors, activated_items=None):
+        if activated_items is None:
+            cache_hash_chunks = list()
+            module_site_paths = list()
+            module_constraint_paths = list()
+        else:
+            cache_hash_chunks, module_site_paths, module_constraint_paths = activated_items
         #
         for module_descriptor in module_descriptors:
             requirements_hash = hashlib.sha256(module_descriptor.requirements.encode()).hexdigest()
@@ -378,6 +381,8 @@ class ModuleManager:
             module_obj.init()
             #
             self.modules[module_descriptor.name] = module_descriptor
+        #
+        return cache_hash_chunks, module_site_paths, module_constraint_paths
 
     def deinit_modules(self):
         """ De-init and unload modules """
