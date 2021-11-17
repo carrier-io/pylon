@@ -249,6 +249,8 @@ class ModuleManager:
                 #
                 module_source = provider.get_source(module_target)
                 #
+                provider.deinit()
+                #
                 self.providers["plugins"].add_plugin(module_name, module_source)
             #
             try:
