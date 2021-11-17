@@ -23,12 +23,14 @@
 from pylon.core.tools import log
 
 
-def resolve_depencies(module_map):
+def resolve_depencies(module_map, present_modules=None):
     """ Resolve depencies """
+    if present_modules is None:
+        present_modules = list()
     # Check required depencies
     for module_name, module_data in module_map.items():
         for dependency in module_data[0].get("depends_on", list()):
-            if dependency not in module_map:
+            if dependency not in module_map and dependency not in present_modules:
                 log.error("Dependency %s not present (required by %s)", dependency, module_name)
                 raise RuntimeError("Required dependency not present")
     # Walk modules
@@ -44,7 +46,9 @@ def resolve_depencies(module_map):
 def _walk_module_depencies(module_name, module_map, module_order, visited_modules):
     # Collect depencies
     depencies = list()
-    depencies.extend(module_map[module_name][0].get("depends_on", list()))
+    for required_dependency in module_map[module_name][0].get("depends_on", list()):
+        if required_dependency in module_map:
+            depencies.append(required_dependency)
     for optional_dependency in module_map[module_name][0].get("init_after", list()):
         if optional_dependency in module_map:
             depencies.append(optional_dependency)

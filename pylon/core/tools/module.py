@@ -191,27 +191,97 @@ class ModuleManager:
             sys.modules["plugins"].__path__ = []
         # Make providers
         self._init_providers()
-        # TODO: preload
+        # Create loaders for preload modules
+        preload_module_meta_map = self._make_preload_module_meta_map()
+        # Resolve preload module load order
+        preload_module_order = dependency.resolve_depencies(
+            preload_module_meta_map, list(self.modules),
+        )
+        # Make preload module descriptors
+        preload_module_descriptors = self._make_descriptors(
+            preload_module_meta_map, preload_module_order,
+        )
+        # Install/get/activate requirements and initialize preload modules
+        self._activate_modules(preload_module_descriptors)
         # Create loaders for target modules
+        target_module_meta_map = self._make_target_module_meta_map()
+        # Resolve target module load order
+        target_module_order = dependency.resolve_depencies(
+            target_module_meta_map, list(self.modules),
+        )
+        # Make target module descriptors
+        target_module_descriptors = self._make_descriptors(
+            target_module_meta_map, target_module_order,
+        )
+        # Install/get/activate requirements and initialize target modules
+        self._activate_modules(target_module_descriptors)
+
+    def _make_preload_module_meta_map(self):
         module_meta_map = dict()  # module_name -> (metadata, loader)
-        for module_name in self.providers["plugins"].list_plugins(exclude=list(self.modules)):
-            module_loader = self.providers["plugins"].get_plugin_loader(module_name)
+        #
+        if "preload" not in self.settings:
+            return module_meta_map
+        #
+        for module_name in self.settings["preload"]:
+            if not self.providers["plugins"].plugin_exists(module_name):
+                module_target = self.settings["preload"][module_name].copy()
+                #
+                if "provider" not in module_target or \
+                        "type" not in module_target["provider"]:
+                    continue
+                #
+                provider_config = module_target.pop("provider").copy()
+                provider_type = provider_config.pop("type")
+                #
+                provider = importlib.import_module(
+                    f"pylon.core.providers.source.{provider_type}"
+                ).Provider(self.context, provider_config)
+                provider.init()
+                #
+                module_source = provider.get_source(module_target)
+                #
+                self.providers["plugins"].add_plugin(module_name, module_source)
             #
-            if not module_loader.has_file("metadata.json"):
-                log.error("Module has no metadata: %s", module_name)
+            try:
+                module_loader, module_metadata = self._make_loader_and_metadata(module_name)
+            except:  # pylint: disable=W0702
+                log.exception("Could not make module loader: %s", module_name)
                 continue
             #
-            module_metadata = json.loads(module_loader.get_data("metadata.json"))
-            #
-            if module_loader.has_directory("static") or module_metadata.get("extract", False):
-                module_loader = module_loader.get_local_loader(self.temporary_objects)
+            module_meta_map[module_name] = (module_metadata, module_loader)
+        #
+        return module_meta_map
+
+    def _make_target_module_meta_map(self):
+        module_meta_map = dict()  # module_name -> (metadata, loader)
+        #
+        for module_name in self.providers["plugins"].list_plugins(exclude=list(self.modules)):
+            try:
+                module_loader, module_metadata = self._make_loader_and_metadata(module_name)
+            except:  # pylint: disable=W0702
+                log.exception("Could not make module loader: %s", module_name)
+                continue
             #
             module_meta_map[module_name] = (module_metadata, module_loader)
-        # Resolve module load order
-        module_order = dependency.resolve_depencies(module_meta_map)
-        log.debug("Module order: %s", module_order)
-        # Make module descriptors
+        #
+        return module_meta_map
+
+    def _make_loader_and_metadata(self, module_name):
+        module_loader = self.providers["plugins"].get_plugin_loader(module_name)
+        #
+        if not module_loader.has_file("metadata.json"):
+            raise ValueError(f"Module has no metadata: {module_name}")
+        #
+        module_metadata = json.loads(module_loader.get_data("metadata.json"))
+        #
+        if module_loader.has_directory("static") or module_metadata.get("extract", False):
+            module_loader = module_loader.get_local_loader(self.temporary_objects)
+        #
+        return module_loader, module_metadata
+
+    def _make_descriptors(self, module_meta_map, module_order):
         module_descriptors = list()
+        #
         for module_name in module_order:
             module_metadata, module_loader = module_meta_map[module_name]
             # Get module requirements
@@ -227,7 +297,10 @@ class ModuleManager:
             module_descriptor.load_config()
             #
             module_descriptors.append(module_descriptor)
-        # Install/get/activate requirements and initialize module
+        #
+        return module_descriptors
+
+    def _activate_modules(self, module_descriptors):
         cache_hash_chunks = list()
         module_site_paths = list()
         module_constraint_paths = list()
