@@ -86,6 +86,10 @@ def register_traefik_route(context):
 def unregister_traefik_route(context):
     """ Delete Traefik route for this Pylon instance """
     #
+    if context.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        log.info("Running in development mode before reloader is started. Skipping unregistration")
+        return
+    #
     traefik_config = context.settings.get("traefik", dict())
     if not traefik_config:
         log.error("Cannot unregister route: no traefik config")

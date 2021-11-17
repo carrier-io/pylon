@@ -303,6 +303,12 @@ class ModuleManager:
 
     def deinit_modules(self):
         """ De-init and unload modules """
+        if self.context.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+            log.info(
+                "Running in development mode before reloader is started. Skipping module unloading"
+            )
+            return
+        #
         for _, module_descriptor in self.modules.items():
             try:
                 module_descriptor.module.deinit()
