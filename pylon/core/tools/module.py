@@ -92,7 +92,7 @@ class ModuleDescriptor:
         config_data = yaml.dump(self.config).encode()
         self.context.module_manager.providers["config"].add_config_data(self.name, config_data)
 
-    def make_blueprint(self, url_prefix=None, static_url_prefix=None):
+    def make_blueprint(self, url_prefix=None, static_url_prefix=None, use_template_prefix=True):
         """ Make configured Blueprint instance """
         template_folder = None
         if self.loader.has_directory("templates"):
@@ -117,11 +117,20 @@ class ModuleDescriptor:
         )
         #
         if template_folder is not None:
-            result_blueprint.jinja_loader = jinja2.PrefixLoader({
-                self.name: jinja2.loaders.PackageLoader(f"plugins.{self.name}", "templates"),
-            }, delimiter=":")
+            if use_template_prefix:
+                result_blueprint.jinja_loader = jinja2.PrefixLoader({
+                    self.name: jinja2.loaders.PackageLoader(f"plugins.{self.name}", "templates"),
+                }, delimiter=":")
+            else:
+                result_blueprint.jinja_loader = jinja2.loaders.PackageLoader(
+                    f"plugins.{self.name}", "templates"
+                )
         #
         return result_blueprint
+
+    # def init_blueprint():
+    #     """ """
+    #     self.add_url_rule(rule, endpoint, obj, **options)
 
     def template_name(self, name, module=None):
         """ Make prefixed template name """
