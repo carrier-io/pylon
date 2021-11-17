@@ -401,7 +401,7 @@ class ModuleManager:
             )
             return
         #
-        for _, module_descriptor in self.modules.items():
+        for _, module_descriptor in reversed(self.modules.items()):
             try:
                 module_descriptor.module.deinit()
             except:  # pylint: disable=W0702
