@@ -32,6 +32,8 @@ import subprocess
 import pkg_resources
 
 import yaml  # pylint: disable=E0401
+import flask  # pylint: disable=E0401
+import jinja2  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import dependency
@@ -90,11 +92,43 @@ class ModuleDescriptor:
         config_data = yaml.dump(self.config).encode()
         self.context.module_manager.providers["config"].add_config_data(self.name, config_data)
 
-    def make_blueprint(self):
+    def make_blueprint(self, url_prefix=None, static_url_prefix=None):
         """ Make configured Blueprint instance """
+        template_folder = None
+        if self.loader.has_directory("templates"):
+            template_folder = "templates"
+        #
+        if url_prefix is None:
+            url_prefix = f"{self.context.url_prefix}/{self.name}"
+        #
+        static_folder = None
+        if self.loader.has_directory("static"):
+            static_folder = "static"
+            if static_url_prefix is None:
+                static_url_prefix = f"{self.context.url_prefix}/static/{self.name}"
+        #
+        result_blueprint = flask.Blueprint(
+            self.name, f"plugins.{self.name}",
+            root_path=self.path,
+            url_prefix=url_prefix,
+            template_folder=template_folder,
+            static_folder=static_folder,
+            static_url_path=static_url_prefix,
+        )
+        #
+        if template_folder is not None:
+            result_blueprint.jinja_loader = jinja2.PrefixLoader({
+                self.name: jinja2.loaders.PackageLoader(f"plugins.{self.name}", "templates"),
+            }, delimiter=":")
+        #
+        return result_blueprint
 
     def template_name(self, name, module=None):
         """ Make prefixed template name """
+        if module is None:
+            module = self.name
+        #
+        return f"{module}:{name}"
 
 
 class ModuleManager:
