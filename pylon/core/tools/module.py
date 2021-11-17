@@ -36,6 +36,7 @@ import flask  # pylint: disable=E0401
 import jinja2  # pylint: disable=E0401
 
 from pylon.core.tools import log
+from pylon.core.tools import web
 from pylon.core.tools import dependency
 from pylon.core.tools.config import config_substitution, vault_secrets
 
@@ -128,9 +129,23 @@ class ModuleDescriptor:
         #
         return result_blueprint
 
-    # def init_blueprint():
-    #     """ """
-    #     self.add_url_rule(rule, endpoint, obj, **options)
+    def init_blueprint(
+            self, url_prefix=None, static_url_prefix=None, use_template_prefix=True,
+            register_in_app=True,
+        ):
+        """ Make and register blueprint with pre-registered routes """
+        # Make Blueprint
+        result_blueprint = self.make_blueprint(url_prefix, static_url_prefix, use_template_prefix)
+        # Add routes
+        routes = web.routes_registry.pop(f"plugins.{self.name}", list())
+        for route in routes:
+            rule, endpoint, obj, options = route
+            result_blueprint.add_url_rule(rule, endpoint, obj, **options)
+        # Register in app
+        if register_in_app:
+            self.context.app.register_blueprint(result_blueprint)
+        #
+        return result_blueprint
 
     def template_name(self, name, module=None):
         """ Make prefixed template name """

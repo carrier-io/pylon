@@ -20,7 +20,7 @@
     Web tools
 """
 
-from pylon.core.tools import log
+# from pylon.core.tools import log
 
 routes_registry = dict()  # module -> [routes]  # pylint: disable=C0103
 
@@ -31,8 +31,6 @@ def route(rule, **options):
     def _decorator(obj):
         module = ".".join(obj.__module__.split(".")[:2])
         endpoint = options.pop("endpoint", None)
-        #
-        log.info("module = %s -> %s", obj.__module__, module)
         #
         if module not in routes_registry:
             routes_registry[module] = list()
