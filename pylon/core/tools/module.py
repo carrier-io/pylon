@@ -340,10 +340,9 @@ class ModuleManager:
             self.providers[key] = provider
 
     def _deinit_providers(self):
-        for key in ["plugins", "requirements", "config"]:
+        for key, provider in self.providers.items():
             log.info("Deinitializing %s provider", key)
-            #
-            self.providers[key].deinit()
+            provider.deinit()
 
     @staticmethod
     def activate_loader(loader):
