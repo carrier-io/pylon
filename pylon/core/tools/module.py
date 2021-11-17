@@ -159,6 +159,11 @@ class ModuleDescriptor:
         #
         return f"{module}:{name}"
 
+    def render_template(self, name, **context):
+        """ Render tempate from this module """
+        module = self.name
+        return flask.render_template(f"{module}:{name}", **context)
+
 
 class ModuleManager:
     """ Manages modules """
