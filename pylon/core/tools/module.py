@@ -38,6 +38,7 @@ import jinja2  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import web
+from pylon.core.tools import process
 from pylon.core.tools import dependency
 from pylon.core.tools.config import config_substitution, vault_secrets
 
@@ -191,6 +192,10 @@ class ModuleManager:
             sys.modules["plugins"].__path__ = []
         # Make providers
         self._init_providers()
+        #
+        # Preload
+        #
+        log.info("Preloading modules")
         # Create loaders for preload modules
         preload_module_meta_map = self._make_preload_module_meta_map()
         # Resolve preload module load order
@@ -203,6 +208,10 @@ class ModuleManager:
         )
         # Install/get/activate requirements and initialize preload modules
         preloaded_items = self._activate_modules(preload_module_descriptors)
+        #
+        # Target
+        #
+        log.info("Initializing modules")
         # Create loaders for target modules
         target_module_meta_map = self._make_target_module_meta_map()
         # Resolve target module load order
@@ -475,7 +484,7 @@ class ModuleManager:
             c_args.append("-c")
             c_args.append(const)
         #
-        return subprocess.check_call(
+        return process.run_command(
             [
                 sys.executable,
                 "-m", "pip", "install",
