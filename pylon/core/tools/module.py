@@ -144,6 +144,7 @@ class ModuleDescriptor:
             rule, endpoint, obj, options = route
             if module_routes:
                 obj = functools.partial(obj, self.module)
+                obj.__name__ = obj.func.__name__
             result_blueprint.add_url_rule(rule, endpoint, obj, **options)
         # Register in app
         if register_in_app:
