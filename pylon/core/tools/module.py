@@ -26,6 +26,7 @@ import shutil
 import hashlib
 import zipfile
 import tempfile
+import functools
 import posixpath
 import importlib
 import subprocess
@@ -130,8 +131,9 @@ class ModuleDescriptor:
         return result_blueprint
 
     def init_blueprint(
-            self, url_prefix=None, static_url_prefix=None, use_template_prefix=True,
-            register_in_app=True,
+            self,
+            url_prefix=None, static_url_prefix=None, use_template_prefix=True,
+            register_in_app=True, module_routes=True,
         ):
         """ Make and register blueprint with pre-registered routes """
         # Make Blueprint
@@ -140,6 +142,8 @@ class ModuleDescriptor:
         routes = web.routes_registry.pop(f"plugins.{self.name}", list())
         for route in routes:
             rule, endpoint, obj, options = route
+            if module_routes:
+                obj = functools.partial(obj, self.module)
             result_blueprint.add_url_rule(rule, endpoint, obj, **options)
         # Register in app
         if register_in_app:
