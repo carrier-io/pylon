@@ -67,6 +67,8 @@ class Provider(PluginsProviderModel):
             if item in plugins:
                 plugins.remove(item)
         #
+        plugins.sort()
+        #
         return plugins
 
     def get_plugin_loader(self, name):
