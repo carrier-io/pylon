@@ -107,8 +107,10 @@ class ModuleDescriptor:
         static_folder = None
         if self.loader.has_directory("static"):
             static_folder = "static"
-            if static_url_prefix is None:
-                static_url_prefix = f"{self.context.url_prefix}/static/{self.name}"
+            # if static_url_prefix is None:
+            #     static_url_prefix = f"{self.context.url_prefix}/static/{self.name}"  # TODO check prefix
+        # watch for config changes
+        # test robots1.txt from other module
         #
         result_blueprint = flask.Blueprint(
             self.name, f"plugins.{self.name}",
