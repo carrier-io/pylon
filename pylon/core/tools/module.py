@@ -347,6 +347,7 @@ class ModuleManager:
                     all_required_dependencies_present = False
             #
             if not all_required_dependencies_present:
+                log.error("Skipping module: %s", module_descriptor.name)
                 continue
             #
             requirements_hash = hashlib.sha256(module_descriptor.requirements.encode()).hexdigest()
