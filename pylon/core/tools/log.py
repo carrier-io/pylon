@@ -19,6 +19,7 @@
     Logging tool
 """
 
+import os
 import logging
 import inspect
 import urllib3  # pylint: disable=E0401
@@ -92,3 +93,13 @@ def log(lvl, msg, *args, **kwargs):
 def exception(msg, *args, **kwargs):
     """ Logs a message with level ERROR inside exception handler """
     return get_outer_logger().exception(msg, *args, **kwargs)
+
+
+def enable_logging():
+    """ Enable logging using log level supplied from env """
+    if os.environ.get("CORE_DEBUG_LOGGING", "").lower() in ["true", "yes"]:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+    #
+    init(log_level)

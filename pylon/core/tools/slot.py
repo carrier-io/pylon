@@ -31,6 +31,8 @@ class SlotManager:
         self.context = context
         self.callbacks = dict()
         #
+        self.context.app.context_processor(template_slot_processor(self.context))
+        #
         self.context.event_manager.register_listener(
             "register_slot_callback", self._on_register_slot_callback
         )
@@ -67,6 +69,7 @@ class SlotManager:
 
     def unregister_callback(self, slot, callback):
         """ Unregister slot callback """
+        # TODO: unregister slots
         #
         # if slot not in self.callbacks:
         #     return
