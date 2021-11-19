@@ -84,11 +84,20 @@ class ModuleDescriptor:
         else:
             config_data = b""
         #
-        yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
+        try:
+            yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
+        except:  # pylint: disable=W0702
+            log.exception("Invaid YAML config data for: %s", self.name)
+            yaml_data = None
+        #
         if yaml_data is None:
             yaml_data = dict()
         #
-        self.config = config_substitution(yaml_data, vault_secrets(self.context.settings))
+        try:
+            self.config = config_substitution(yaml_data, vault_secrets(self.context.settings))
+        except:  # pylint: disable=W0702
+            log.exception("Could not add config secrets and env data for: %s", self.name)
+            self.config = yaml_data
 
     def save_config(self):
         """ Save custom config """
@@ -245,14 +254,18 @@ class ModuleManager:
                 provider_config = module_target.pop("provider").copy()
                 provider_type = provider_config.pop("type")
                 #
-                provider = importlib.import_module(
-                    f"pylon.core.providers.source.{provider_type}"
-                ).Provider(self.context, provider_config)
-                provider.init()
-                #
-                module_source = provider.get_source(module_target)
-                #
-                provider.deinit()
+                try:
+                    provider = importlib.import_module(
+                        f"pylon.core.providers.source.{provider_type}"
+                    ).Provider(self.context, provider_config)
+                    provider.init()
+                    #
+                    module_source = provider.get_source(module_target)
+                    #
+                    provider.deinit()
+                except:  # pylint: disable=W0702
+                    log.exception("Could not preload module: %s", module_name)
+                    continue
                 #
                 self.providers["plugins"].add_plugin(module_name, module_source)
             #
@@ -323,6 +336,19 @@ class ModuleManager:
             cache_hash_chunks, module_site_paths, module_constraint_paths = activated_items
         #
         for module_descriptor in module_descriptors:
+            all_required_dependencies_present = True
+            #
+            for required_dependency in module_descriptor.metadata.get("depends_on", list()):
+                if required_dependency not in self.modules:
+                    log.error(
+                        "Required dependency is not present: %s (required by %s)",
+                        required_dependency, module_descriptor.name,
+                    )
+                    all_required_dependencies_present = False
+            #
+            if not all_required_dependencies_present:
+                continue
+            #
             requirements_hash = hashlib.sha256(module_descriptor.requirements.encode()).hexdigest()
             cache_hash_chunks.append(requirements_hash)
             cache_hash = hashlib.sha256("_".join(cache_hash_chunks).encode()).hexdigest()
@@ -345,12 +371,16 @@ class ModuleManager:
                 requirements_base = tempfile.mkdtemp()
                 self.temporary_objects.append(requirements_base)
                 #
-                self.install_requirements(
-                    requirements_path=requirements_txt,
-                    target_site_base=requirements_base,
-                    additional_site_paths=module_site_paths,
-                    constraint_paths=module_constraint_paths,
-                )
+                try:
+                    self.install_requirements(
+                        requirements_path=requirements_txt,
+                        target_site_base=requirements_base,
+                        additional_site_paths=module_site_paths,
+                        constraint_paths=module_constraint_paths,
+                    )
+                except:  # pylint: disable=W0702
+                    log.exception("Failed to install requirements for: %s", module_descriptor.name)
+                    continue
                 #
                 self.providers["requirements"].add_requirements(
                     module_name, cache_hash, requirements_base,
@@ -384,15 +414,17 @@ class ModuleManager:
             self.activate_path(module_descriptor.requirements_path)
             self.activate_loader(module_descriptor.loader)
             #
-            module_pkg = importlib.import_module(f"plugins.{module_descriptor.name}.module")
-            module_obj = module_pkg.Module(
-                context=self.context,
-                descriptor=module_descriptor,
-            )
-            #
-            module_descriptor.module = module_obj
-            #
-            module_obj.init()
+            try:
+                module_pkg = importlib.import_module(f"plugins.{module_descriptor.name}.module")
+                module_obj = module_pkg.Module(
+                    context=self.context,
+                    descriptor=module_descriptor,
+                )
+                module_descriptor.module = module_obj
+                module_obj.init()
+            except:  # pylint: disable=W0702
+                log.exception("Failed to enable module: %s", module_descriptor.name)
+                continue
             #
             self.modules[module_descriptor.name] = module_descriptor
         #
@@ -406,7 +438,7 @@ class ModuleManager:
             )
             return
         #
-        for module_name in reversed(self.modules):
+        for module_name in reversed(list(self.modules)):
             try:
                 self.modules[module_name].module.deinit()
             except:  # pylint: disable=W0702
@@ -445,7 +477,10 @@ class ModuleManager:
     def _deinit_providers(self):
         for key, provider in self.providers.items():
             log.info("Deinitializing %s provider", key)
-            provider.deinit()
+            try:
+                provider.deinit()
+            except:  # pylint: disable=W0702
+                pass
 
     @staticmethod
     def activate_loader(loader):
