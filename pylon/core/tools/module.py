@@ -105,7 +105,7 @@ class ModuleDescriptor:
             url_prefix = self.name
         #
         if self.context.url_prefix:
-            url_prefix = f"{self.context.url_prefix}/{url_prefix}"
+            url_prefix = f"{self.context.url_prefix}/{url_prefix.lstrip('/')}"
         #
         static_folder = None
         if self.loader.has_directory("static"):
