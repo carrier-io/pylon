@@ -111,7 +111,7 @@ class ModuleDescriptor:
             template_folder = "templates"
         #
         if url_prefix is None:
-            url_prefix = self.name
+            url_prefix = f"/{self.name}"
         #
         if self.context.url_prefix:
             url_prefix = f"{self.context.url_prefix}/{url_prefix.lstrip('/')}"
