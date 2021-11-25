@@ -45,3 +45,14 @@ def run_server(context):
             port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
             debug=context.debug, use_reloader=context.debug,
         )
+
+
+def noop_app(environ, start_response):
+    """ Dummy app that always returns 404 """
+    _ = environ
+    #
+    start_response("404 Not Found", [
+        ("Content-type", "text/plain")
+    ])
+    #
+    return ["Not Found\n"]

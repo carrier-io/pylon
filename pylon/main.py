@@ -91,7 +91,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.event_manager = event.EventManager(context)
     # Initiate Dulwich Git Manager
     context.git_manager = git_manager.GitManager(context.settings.get('git_manager'))
-    # Save global URL prefix to context. May merge with traefik rule in future
+    # Save global URL prefix to context
     context.url_prefix = context.settings.get("server", dict()).get("path", "/")
     while context.url_prefix.endswith("/"):
         context.url_prefix = context.url_prefix[:-1]
@@ -111,7 +111,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Add dispatcher and proxy middlewares if needed
     if context.url_prefix:
         context.app.wsgi_app = DispatcherMiddleware(
-            context.app.wsgi_app, {context.url_prefix: context.app.wsgi_app}
+            server.noop_app, {context.url_prefix: context.app.wsgi_app}
         )
     if context.settings.get("server", dict()).get("proxy", False):
         context.app.wsgi_app = ProxyFix(
