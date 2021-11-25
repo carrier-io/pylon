@@ -67,7 +67,9 @@ def register_traefik_route(context):
     )
     #
     traefik_rootkey = traefik_config.get("rootkey", "traefik")
-    traefik_rule = traefik_config.get("rule", "PathPrefix(`/`)")
+    traefik_rule = traefik_config.get(
+        "rule", f"PathPrefix(`{context.url_prefix if context.url_prefix else '/'}`)"
+    )
     traefik_entrypoint = traefik_config.get("entrypoint", "http")
     #
     store.set(f"{traefik_rootkey}/http/routers/{node_name}/rule", traefik_rule)

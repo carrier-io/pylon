@@ -43,20 +43,19 @@ import socket
 import signal
 
 import flask  # pylint: disable=E0401
-from flask_restful import Api  # pylint: disable=E0401
-from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
+import flask_restful  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import log_loki
 from pylon.core.tools import module
 from pylon.core.tools import event
 from pylon.core.tools import seed
+from pylon.core.tools import git
 from pylon.core.tools import rpc
 from pylon.core.tools import slot
 from pylon.core.tools import server
 from pylon.core.tools import session
 from pylon.core.tools import traefik
-from pylon.core.tools import git_manager
 
 from pylon.core.tools.signal import signal_sigterm
 from pylon.core.tools.context import Context
@@ -87,29 +86,30 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.module_manager = module.ModuleManager(context)
     # Make EventManager instance
     context.event_manager = event.EventManager(context)
-    # Initiate Dulwich Git Manager
-    context.git_manager = git_manager.GitManager(context.settings.get('git_manager'))
+    # Add global URL prefix to context
+    server.add_url_prefix(context)
     # Make app instance
     log.info("Creating Flask application")
     context.app = flask.Flask("pylon")
-    if context.settings.get("server", dict()).get("proxy", False):
-        context.app.wsgi_app = ProxyFix(context.app.wsgi_app, x_proto=1, x_host=1)
     # Make API instance
     log.info("Creating API instance")
-    context.api = Api(context.app, catch_all_404s=True)
+    context.api = flask_restful.Api(context.app, catch_all_404s=True)
+    # Make SocketIO instance
+    log.info("Creating SocketIO instance")
+    context.sio = server.create_socketio_instance(context)
+    # Add dispatcher and proxy middlewares if needed
+    server.add_middlewares(context)
     # Set application settings
     context.app.config["CONTEXT"] = context
     context.app.config.from_mapping(context.settings.get("application", dict()))
-    # Save global URL prefix to context. May merge with traefik rule in future
-    context.url_prefix = context.settings.get("server", dict()).get("path", "/")
-    while context.url_prefix.endswith("/"):
-        context.url_prefix = context.url_prefix[:-1]
     # Enable server-side sessions
     session.init_flask_sessions(context)
     # Make RpcManager instance
     context.rpc_manager = rpc.RpcManager(context)
     # Make SlotManager instance
     context.slot_manager = slot.SlotManager(context)
+    # Apply patches needed for pure-python git and providers
+    git.apply_patches()
     # Load and initialize modules
     context.module_manager.init_modules()
     # Register Traefik route via Redis KV
