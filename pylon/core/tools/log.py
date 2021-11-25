@@ -19,6 +19,7 @@
     Logging tool
 """
 
+import io
 import os
 import logging
 import inspect
@@ -103,3 +104,20 @@ def enable_logging():
         log_level = logging.INFO
     #
     init(log_level)
+
+
+class DebugLogStream(io.RawIOBase):
+    """ IO stream that writes to log.debug """
+
+    def read(self, size=-1):  # pylint: disable=W0613
+        return None
+
+    def readall(self):
+        return None
+
+    def readinto(self, b):  # pylint: disable=W0613
+        return None
+
+    def write(self, b):
+        for line in b.decode().splitlines():
+            get_outer_logger().debug(line)
