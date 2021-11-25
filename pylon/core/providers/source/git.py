@@ -42,7 +42,6 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
         self.key_filename = self.settings.get("key_filename", None)
         self.key_data = self.settings.get("key_data", None)
 
-
     def init(self):
         """ Initialize provider """
 
