@@ -17,7 +17,6 @@
 
 """ SourceProvider """
 
-import os
 import tempfile
 
 from pylon.core.tools import git
@@ -31,8 +30,6 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
     def __init__(self, context, settings):
         self.context = context
         self.settings = settings
-        #
-        self.source_url_template = self.settings["source_url_template"]
         #
         self.branch = self.settings.get("branch", "main")
         self.depth = self.settings.get("depth", 1)
@@ -50,15 +47,19 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
 
     def get_source(self, target):
         """ Get plugin source """
-        target_url = self.source_url_template.format(name=target["name"])
-        #
-        target_path = os.path.join(tempfile.mkdtemp(), target["name"])
-        os.makedirs(target_path, exist_ok=True)
+        target_path = tempfile.mkdtemp()
         self.context.module_manager.temporary_objects.append(target_path)
         #
         git.clone(
-            target_url, target_path, self.branch, self.depth, self.delete_git_dir,
-            self.username, self.password, self.key_filename, self.key_data,
+            target.get("source"),
+            target_path,
+            target.get("branch", self.branch),
+            target.get("depth", self.depth),
+            target.get("delete_git_dir", self.delete_git_dir),
+            target.get("username", self.username),
+            target.get("password", self.password),
+            target.get("key_filename", self.key_filename),
+            target.get("key_data", self.key_data),
         )
         #
         return target_path
