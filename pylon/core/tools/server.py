@@ -21,6 +21,7 @@
 """
 
 from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412
+from geventwebsocket.handler import WebSocketHandler  # pylint: disable=E0401,C0412
 
 from pylon.core import constants
 from pylon.core.tools import log
@@ -35,7 +36,7 @@ def run_server(context):
                 context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
                 context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT)
             ),
-            context.app
+            context.app, handler_class=WebSocketHandler,
         )
         http_server.serve_forever()
     else:
