@@ -14,3 +14,6 @@ watchdog==1.0.2
 arbiter @ git+https://github.com/carrier-io/arbiter.git#egg=arbiter
 dulwich==0.20.23
 paramiko==2.7.2
+simple-websocket==0.4.0
+gevent-websocket==0.10.1
+python-socketio==5.5.0

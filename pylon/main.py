@@ -44,7 +44,9 @@ import signal
 
 import flask  # pylint: disable=E0401
 from flask_restful import Api  # pylint: disable=E0401
+from werkzeug.middleware.dispatcher import DispatcherMiddleware  # pylint: disable=E0401
 from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
+import socketio  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import log_loki
@@ -89,21 +91,35 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.event_manager = event.EventManager(context)
     # Initiate Dulwich Git Manager
     context.git_manager = git_manager.GitManager(context.settings.get('git_manager'))
-    # Make app instance
-    log.info("Creating Flask application")
-    context.app = flask.Flask("pylon")
-    if context.settings.get("server", dict()).get("proxy", False):
-        context.app.wsgi_app = ProxyFix(context.app.wsgi_app, x_proto=1, x_host=1)
-    # Make API instance
-    log.info("Creating API instance")
-    context.api = Api(context.app, catch_all_404s=True)
-    # Set application settings
-    context.app.config["CONTEXT"] = context
-    context.app.config.from_mapping(context.settings.get("application", dict()))
     # Save global URL prefix to context. May merge with traefik rule in future
     context.url_prefix = context.settings.get("server", dict()).get("path", "/")
     while context.url_prefix.endswith("/"):
         context.url_prefix = context.url_prefix[:-1]
+    # Make app instance
+    log.info("Creating Flask application")
+    context.app = flask.Flask("pylon")
+    # Make API instance
+    log.info("Creating API instance")
+    context.api = Api(context.app, catch_all_404s=True)
+    # Make SocketIO instance
+    log.info("Creating SocketIO instance")
+    if not context.debug:
+        context.sio = socketio.Server(async_mode="gevent")
+    else:
+        context.sio = socketio.Server(async_mode="threading")
+    context.app.wsgi_app = socketio.WSGIApp(context.sio, context.app.wsgi_app)
+    # Add dispatcher and proxy middlewares if needed
+    if context.url_prefix:
+        context.app.wsgi_app = DispatcherMiddleware(
+            context.app.wsgi_app, {context.url_prefix: context.app.wsgi_app}
+        )
+    if context.settings.get("server", dict()).get("proxy", False):
+        context.app.wsgi_app = ProxyFix(
+            context.app.wsgi_app, x_proto=1, x_host=1
+        )
+    # Set application settings
+    context.app.config["CONTEXT"] = context
+    context.app.config.from_mapping(context.settings.get("application", dict()))
     # Enable server-side sessions
     session.init_flask_sessions(context)
     # Make RpcManager instance
