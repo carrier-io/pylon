@@ -43,10 +43,7 @@ import socket
 import signal
 
 import flask  # pylint: disable=E0401
-from flask_restful import Api  # pylint: disable=E0401
-from werkzeug.middleware.dispatcher import DispatcherMiddleware  # pylint: disable=E0401
-from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
-import socketio  # pylint: disable=E0401
+import flask_restful  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import log_loki
@@ -91,32 +88,19 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.event_manager = event.EventManager(context)
     # Initiate Dulwich Git Manager
     context.git_manager = git_manager.GitManager(context.settings.get('git_manager'))
-    # Save global URL prefix to context
-    context.url_prefix = context.settings.get("server", dict()).get("path", "/")
-    while context.url_prefix.endswith("/"):
-        context.url_prefix = context.url_prefix[:-1]
+    # Add global URL prefix to context
+    server.add_url_prefix(context)
     # Make app instance
     log.info("Creating Flask application")
     context.app = flask.Flask("pylon")
     # Make API instance
     log.info("Creating API instance")
-    context.api = Api(context.app, catch_all_404s=True)
+    context.api = flask_restful.Api(context.app, catch_all_404s=True)
     # Make SocketIO instance
     log.info("Creating SocketIO instance")
-    if not context.debug:
-        context.sio = socketio.Server(async_mode="gevent")
-    else:
-        context.sio = socketio.Server(async_mode="threading")
-    context.app.wsgi_app = socketio.WSGIApp(context.sio, context.app.wsgi_app)
+    context.sio = server.create_socketio_instance(context)
     # Add dispatcher and proxy middlewares if needed
-    if context.url_prefix:
-        context.app.wsgi_app = DispatcherMiddleware(
-            server.noop_app, {context.url_prefix: context.app.wsgi_app}
-        )
-    if context.settings.get("server", dict()).get("proxy", False):
-        context.app.wsgi_app = ProxyFix(
-            context.app.wsgi_app, x_proto=1, x_host=1
-        )
+    server.add_middlewares(context)
     # Set application settings
     context.app.config["CONTEXT"] = context
     context.app.config.from_mapping(context.settings.get("application", dict()))
