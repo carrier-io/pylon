@@ -55,4 +55,4 @@ def noop_app(environ, start_response):
         ("Content-type", "text/plain")
     ])
     #
-    return ["Not Found\n"]
+    return [b"Not Found\n"]
