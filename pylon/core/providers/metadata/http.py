@@ -41,14 +41,19 @@ class Provider(MetadataProviderModel):
 
     def get_metadata(self, target):
         """ Get plugin metadata """
+        #
+        username = target.get("username", self.username)
+        password = target.get("password", self.password)
+        verify = target.get("verify", self.verify)
+        #
         auth = None
-        if self.username is not None and self.password is not None:
-            auth = (self.username, self.password)
+        if username is not None and password is not None:
+            auth = (username, password)
         #
         response = requests.get(
             target.get("source"),
             auth=auth,
-            verify=self.verify,
+            verify=verify,
         )
         #
         return response.json()
