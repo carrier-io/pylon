@@ -18,6 +18,7 @@
 """ PluginsProvider """
 
 import os
+import json
 import shutil
 
 # from pylon.core.tools import log
@@ -76,3 +77,14 @@ class Provider(PluginsProviderModel):
         if not self.plugin_exists(name):
             return None
         return LocalModuleLoader(f"plugins.{name}", os.path.join(self.path, name))
+
+    def get_plugin_metadata(self, name):
+        """ Get metadata for plugin """
+        if not self.plugin_exists(name):
+            return None
+        try:
+            with open(os.path.join(self.path, name, "metadata.json"), "rb") as file:
+                metadata = json.load(file)
+            return metadata
+        except:  # pylint: disable=W0702
+            return dict()

@@ -50,3 +50,7 @@ class PluginsProviderModel:
     def get_plugin_loader(self, name):
         """ Get loader for plugin """
         raise NotImplementedError()
+
+    def get_plugin_metadata(self, name):
+        """ Get metadata for plugin """
+        raise NotImplementedError()
