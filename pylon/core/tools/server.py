@@ -87,9 +87,17 @@ def create_socketio_instance(context):
             log.exception("Cannot make KombuManager instance, SocketIO is in standalone mode")
     #
     if not context.debug:
-        sio = socketio.Server(async_mode="gevent", client_manager=client_manager)
+        sio = socketio.Server(
+            async_mode="gevent",
+            client_manager=client_manager,
+            cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+        )
     else:
-        sio = socketio.Server(async_mode="threading", client_manager=client_manager)
+        sio = socketio.Server(
+            async_mode="threading",
+            client_manager=client_manager,
+            cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+        )
     #
     context.app.wsgi_app = socketio.WSGIApp(sio, context.app.wsgi_app)
     #
