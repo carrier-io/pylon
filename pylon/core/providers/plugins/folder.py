@@ -59,7 +59,9 @@ class Provider(PluginsProviderModel):
 
     def list_plugins(self, exclude=None):
         """ Get existing plugin names """
-        plugins = os.listdir(self.path)
+        plugins = [
+            item for item in os.listdir(self.path) if os.path.isdir(os.path.join(self.path, item))
+        ]
         #
         if exclude is None:
             exclude = list()
