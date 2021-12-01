@@ -161,18 +161,18 @@ def clone(  # pylint: disable=R0913,R0912,R0914
         log.error("Branch %s was not found and default branch is not set. Skipping checkout")
     # Add remote tracking
     if track_branch_upstream and branch_to_track is not None:
-        log.info("Setting '%s' to track upstream branch", track_branch_upstream)
+        log.info("Setting '%s' to track upstream branch", branch_to_track)
         #
-        track_branch_upstream_b = track_branch_upstream.encode("utf-8")
+        branch_to_track_b = branch_to_track.encode("utf-8")
         #
         config = repository.get_config()
         config.set(
-            (b"branch", track_branch_upstream_b),
+            (b"branch", branch_to_track_b),
             b"remote", b"origin",
         )
         config.set(
-            (b"branch", track_branch_upstream_b),
-            b"merge", b"refs/heads/" + track_branch_upstream_b,
+            (b"branch", branch_to_track_b),
+            b"merge", b"refs/heads/" + branch_to_track_b,
         )
         config.write_to_path()
     # Delete .git if requested
