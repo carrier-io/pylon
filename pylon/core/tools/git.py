@@ -95,6 +95,7 @@ def patched_paramiko_client_SSHClient_auth(original_auth):  # pylint: disable=C0
 def clone(  # pylint: disable=R0913,R0912,R0914
         source, target, branch="main", depth=None, delete_git_dir=False,
         username=None, password=None, key_filename=None, key_data=None,
+        track_branch_upstream=True,
 ):
     """ Clone repository """
     # Prepare auth args
@@ -128,29 +129,52 @@ def clone(  # pylint: disable=R0913,R0912,R0914
     except:  # pylint: disable=W0702
         target_tree = None
     # Checkout branch
+    branch_to_track = None
     if target_tree is not None:
         log.info("Checking out branch %s", branch)
         repository[b"refs/heads/" + branch_b] = repository[b"refs/remotes/origin/" + branch_b]
         repository.refs.set_symbolic_ref(b"HEAD", b"refs/heads/" + branch_b)
         repository.reset_index(repository[b"HEAD"].tree)
+        #
+        branch_to_track = branch
     elif head_tree is not None:
         try:
             default_branch_name = repository.refs.follow(b"HEAD")[0][1]
             if default_branch_name.startswith(refs.LOCAL_BRANCH_PREFIX):
                 default_branch_name = default_branch_name[len(refs.LOCAL_BRANCH_PREFIX):]
             default_branch_name = default_branch_name.decode("utf-8")
+            #
             log.warning(
                 "Branch %s was not found. Checking out default branch %s",
                 branch, default_branch_name
             )
+            #
+            branch_to_track = default_branch_name
         except:  # pylint: disable=W0702
             log.warning("Branch %s was not found. Trying to check out default branch", branch)
+        #
         try:
             repository.reset_index(repository[b"HEAD"].tree)
         except:  # pylint: disable=W0702
             log.exception("Failed to checkout default branch")
     else:
         log.error("Branch %s was not found and default branch is not set. Skipping checkout")
+    # Add remote tracking
+    if track_branch_upstream and branch_to_track is not None:
+        log.info("Setting '%s' to track upstream branch", track_branch_upstream)
+        #
+        track_branch_upstream_b = track_branch_upstream.encode("utf-8")
+        #
+        config = repository.get_config()
+        config.set(
+            (b"branch", track_branch_upstream_b),
+            b"remote", b"origin",
+        )
+        config.set(
+            (b"branch", track_branch_upstream_b),
+            b"merge", b"refs/heads/" + track_branch_upstream_b,
+        )
+        config.write_to_path()
     # Delete .git if requested
     if delete_git_dir:
         log.info("Deleting .git directory")
