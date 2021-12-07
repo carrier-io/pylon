@@ -20,6 +20,8 @@
     Server tools
 """
 
+import os
+
 import socketio  # pylint: disable=E0401
 
 from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412
@@ -113,7 +115,8 @@ def run_server(context):
                 context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
                 context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT)
             ),
-            context.app, handler_class=WebSocketHandler,
+            context.app,
+            handler_class=WebSocketHandler,
         )
         http_server.serve_forever()
     else:
@@ -121,5 +124,12 @@ def run_server(context):
         context.app.run(
             host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
             port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
-            debug=context.debug, use_reloader=context.debug,
+            debug=context.debug,
+            use_reloader=context.debug,
+            reloader_type=context.settings.get("server", dict()).get(
+                "reloader_type", os.environ.get("CORE_RELOADER_TYPE", "auto"),
+            ),
+            reloader_interval=context.settings.get("server", dict()).get(
+                "reloader_interval", int(os.environ.get("CORE_RELOADER_INTERVAL", "1")),
+            ),
         )
