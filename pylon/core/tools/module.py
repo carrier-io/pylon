@@ -40,6 +40,7 @@ from pylon.core.tools import log
 from pylon.core.tools import web
 from pylon.core.tools import process
 from pylon.core.tools import dependency
+from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.config import config_substitution, vault_secrets
 
 
@@ -77,27 +78,41 @@ class ModuleDescriptor:
 
     def load_config(self):
         """ Load custom (or default) configuration """
+        #
+        base_config_data = dict()
+        if self.loader.has_file("config.yml"):
+            base_config_data = self._load_yaml_data(self.loader.get_data("config.yml"), "base")
+        #
+        pylon_config_data = self.context.settings.get("configs", dict()).get(self.name, dict())
+        #
+        custom_config_data = dict()
         if self.context.module_manager.providers["config"].config_data_exists(self.name):
-            config_data = self.context.module_manager.providers["config"].get_config_data(self.name)
-        elif self.loader.has_file("config.yml"):
-            config_data = self.loader.get_data("config.yml")
-        else:
-            config_data = b""
+            custom_config_data = self._load_yaml_data(
+                self.context.module_manager.providers["config"].get_config_data(self.name), "custom"
+            )
         #
-        try:
-            yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
-        except:  # pylint: disable=W0702
-            log.exception("Invaid YAML config data for: %s", self.name)
-            yaml_data = None
-        #
-        if yaml_data is None:
-            yaml_data = dict()
+        yaml_data = dict()
+        yaml_data = recursive_merge(yaml_data, base_config_data)
+        yaml_data = recursive_merge(yaml_data, pylon_config_data)
+        yaml_data = recursive_merge(yaml_data, custom_config_data)
         #
         try:
             self.config = config_substitution(yaml_data, vault_secrets(self.context.settings))
         except:  # pylint: disable=W0702
             log.exception("Could not add config secrets and env data for: %s", self.name)
             self.config = yaml_data
+
+    def _load_yaml_data(self, config_data, config_type):
+        try:
+            yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
+        except:  # pylint: disable=W0702
+            log.exception("Invaid YAML config data for: %s (%s)", self.name, config_type)
+            yaml_data = None
+        #
+        if yaml_data is None:
+            yaml_data = dict()
+        #
+        return yaml_data
 
     def save_config(self):
         """ Save custom config """
