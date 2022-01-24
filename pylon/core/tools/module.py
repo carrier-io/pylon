@@ -199,6 +199,9 @@ class ModuleManager:
         self.providers = dict()  # object_type -> provider_instance
         self.modules = dict()  # module_name -> module_descriptor
         self.temporary_objects = list()
+        #
+        self.descriptor = ModuleDescriptorProxy(self)
+        self.module = ModuleProxy(self)
 
     def init_modules(self):
         """ Load and init modules """
@@ -568,6 +571,26 @@ class ModuleManager:
             [sys.executable, "-m", "pip", "freeze", "--user"] + opt_args,
             env=env,
         ).decode()
+
+
+class ModuleProxy:  # pylint: disable=R0903
+    """ Module proxy - syntax sugar for module access """
+
+    def __init__(self, module_manager):
+        self.__module_manager = module_manager
+
+    def __getattr__(self, name):
+        return self.__module_manager.modules[name].module
+
+
+class ModuleDescriptorProxy:  # pylint: disable=R0903
+    """ Module descriptor proxy - syntax sugar for module descriptor access """
+
+    def __init__(self, module_manager):
+        self.__module_manager = module_manager
+
+    def __getattr__(self, name):
+        return self.__module_manager.modules[name]
 
 
 class LocalModuleLoader(importlib.machinery.PathFinder):
