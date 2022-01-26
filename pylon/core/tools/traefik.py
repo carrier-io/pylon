@@ -72,19 +72,14 @@ def register_traefik_route(context):
     )
     traefik_entrypoint = traefik_config.get("entrypoint", "http")
     #
-    store.set(f"{traefik_rootkey}/http/routers/{node_name}/rule", traefik_rule)
-    context.traefik_redis_keys.append(f"{traefik_rootkey}/http/routers/{node_name}/rule")
-    #
-    store.set(f"{traefik_rootkey}/http/routers/{node_name}/entrypoints/0", traefik_entrypoint)
-    context.traefik_redis_keys.append(f"{traefik_rootkey}/http/routers/{node_name}/entrypoints/0")
-    #
-    store.set(f"{traefik_rootkey}/http/routers/{node_name}/service", f"{node_name}")
-    context.traefik_redis_keys.append(f"{traefik_rootkey}/http/routers/{node_name}/service")
+    # 1: Services
     #
     store.set(f"{traefik_rootkey}/http/services/{node_name}/loadbalancer/servers/0/url", node_url)
     context.traefik_redis_keys.append(
         f"{traefik_rootkey}/http/services/{node_name}/loadbalancer/servers/0/url"
     )
+    #
+    # 2: Middlewares
     #
     if "forward_auth_address" in traefik_config and "forward_auth_headers" in traefik_config:
         traefik_forward_auth_address = traefik_config.get("forward_auth_address")
@@ -105,7 +100,16 @@ def register_traefik_route(context):
         context.traefik_redis_keys.append(
             f"{traefik_rootkey}/http/middlewares/{node_name}/forwardauth/authResponseHeaders"
         )
-        #
+    #
+    # 3: Routers
+    #
+    store.set(f"{traefik_rootkey}/http/routers/{node_name}/entrypoints/0", traefik_entrypoint)
+    context.traefik_redis_keys.append(f"{traefik_rootkey}/http/routers/{node_name}/entrypoints/0")
+    #
+    store.set(f"{traefik_rootkey}/http/routers/{node_name}/rule", traefik_rule)
+    context.traefik_redis_keys.append(f"{traefik_rootkey}/http/routers/{node_name}/rule")
+    #
+    if "forward_auth_address" in traefik_config and "forward_auth_headers" in traefik_config:
         store.set(
             f"{traefik_rootkey}/http/routers/{node_name}/middlewares",
             f"{node_name}",
@@ -113,6 +117,9 @@ def register_traefik_route(context):
         context.traefik_redis_keys.append(
             f"{traefik_rootkey}/http/routers/{node_name}/middlewares"
         )
+    #
+    store.set(f"{traefik_rootkey}/http/routers/{node_name}/service", f"{node_name}")
+    context.traefik_redis_keys.append(f"{traefik_rootkey}/http/routers/{node_name}/service")
 
 def unregister_traefik_route(context):
     """ Delete Traefik route for this Pylon instance """
