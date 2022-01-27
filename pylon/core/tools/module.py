@@ -155,7 +155,7 @@ class ModuleDescriptor:
         #
         return result_blueprint
 
-    def init_blueprint(
+    def init_blueprint(  # pylint: disable=R0913
             self,
             url_prefix=None, static_url_prefix=None, use_template_prefix=True,
             register_in_app=True, module_routes=True,
@@ -176,6 +176,56 @@ class ModuleDescriptor:
             self.context.app.register_blueprint(result_blueprint)
         #
         return result_blueprint
+
+    def init_api(self):
+        """ Register all API resources from this module """
+        if not self.loader.has_directory("api"):
+            return
+        #
+        module_pkg = self.loader.module_name
+        module_name = self.name
+        #
+        for api_version in importlib.resources.contents(f"{module_pkg}.api"):
+            if not self.loader.has_directory(f"api/{api_version}"):
+                continue
+            #
+            for api_resource in importlib.resources.contents(
+                f"{module_pkg}.api.{api_version}"
+            ):
+                if not self.loader.has_file(f"api/{api_version}/{api_resource}"):
+                    continue
+                if api_resource.startswith("_") or not api_resource.endswith(".py"):
+                    continue
+                #
+                resource_name, _ = os.path.splitext(api_resource)
+                #
+                resource = importlib.import_module(
+                    f"{module_pkg}.api.{api_version}.{resource_name}"
+                ).API
+                #
+                resource_urls = list()
+                if hasattr(resource, "url_params"):
+                    for url_param in resource.url_params:
+                        url_param = url_param.lstrip("/").rstrip("/")
+                        #
+                        resource_urls.append(
+                            f"/api/{api_version}/{module_name}/{resource_name}/{url_param}"
+                        )
+                        resource_urls.append(
+                            f"/api/{api_version}/{module_name}/{resource_name}/{url_param}/"
+                        )
+                else:
+                    resource_urls.append(f"/api/{api_version}/{module_name}/{resource_name}")
+                    resource_urls.append(f"/api/{api_version}/{module_name}/{resource_name}/")
+                #
+                self.context.api.add_resource(
+                    resource,
+                    *resource_urls,
+                    endpoint=f"{module_name}.api.{api_version}.{resource_name}",
+                    resource_class_kwargs={
+                        "module": self.module,
+                    }
+                )
 
     def template_name(self, name, module=None):
         """ Make prefixed template name """
