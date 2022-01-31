@@ -58,10 +58,10 @@ class ModuleModel:
         raise NotImplementedError()
 
 
-class ModuleDescriptor:
+class ModuleDescriptor:  # pylint: disable=R0902
     """ Module descriptor """
 
-    def __init__(self, context, name, loader, metadata, requirements):
+    def __init__(self, context, name, loader, metadata, requirements):  # pylint: disable=R0913
         self.context = context
         self.name = name
         self.loader = loader
@@ -190,7 +190,7 @@ class ModuleDescriptor:
                 continue
             #
             for api_resource in importlib.resources.contents(
-                f"{module_pkg}.api.{api_version}"
+                    f"{module_pkg}.api.{api_version}"
             ):
                 if not self.loader.has_file(f"api/{api_version}/{api_resource}"):
                     continue
@@ -392,7 +392,7 @@ class ModuleManager:
         #
         return module_descriptors
 
-    def _activate_modules(self, module_descriptors, activated_items=None):
+    def _activate_modules(self, module_descriptors, activated_items=None):  # pylint: disable=R0914,R0915
         if activated_items is None:
             cache_hash_chunks = list()
             module_site_paths = list()
@@ -700,7 +700,7 @@ class LocalModuleLoader(importlib.machinery.PathFinder):
         """ Get path to module data """
         return self.module_abspath
 
-    def get_local_loader(self, temporary_objects=None):
+    def get_local_loader(self, temporary_objects=None):    # pylint: disable=W0613
         """ Get LocalModuleLoader from this module data """
         return self
 
@@ -797,7 +797,7 @@ class DataModuleLoader(importlib.abc.MetaPathFinder):
             self, posixpath.sep.join(name_components[len(self.module_name_components):])
         )
 
-    def get_local_path(self):
+    def get_local_path(self):    # pylint: disable=R0201
         """ Get path to module data """
         return None
 
