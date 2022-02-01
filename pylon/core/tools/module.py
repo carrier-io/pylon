@@ -239,6 +239,20 @@ class ModuleDescriptor:  # pylint: disable=R0902
         module = self.name
         return flask.render_template(f"{module}:{name}", **context)
 
+    def register_tool(self, name, tool):  # pylint: disable=R0201
+        """ Register package or object in tools namespace """
+        if hasattr(sys.modules["tools"], name):
+            raise RuntimeError(f"Tool is already registered: {name}")
+        #
+        setattr(sys.modules["tools"], name, tool)
+
+    def unregister_tool(self, name):  # pylint: disable=R0201
+        """ Unregister package or object from tools namespace """
+        if not hasattr(sys.modules["tools"], name):
+            raise RuntimeError(f"Tool is not registered: {name}")
+        #
+        delattr(sys.modules["tools"], name)
+
 
 class ModuleManager:
     """ Manages modules """
@@ -267,6 +281,10 @@ class ModuleManager:
         if "plugins" not in sys.modules:
             sys.modules["plugins"] = types.ModuleType("plugins")
             sys.modules["plugins"].__path__ = []
+        # Make tools holder
+        if "tools" not in sys.modules:
+            sys.modules["tools"] = types.ModuleType("tools")
+            sys.modules["tools"].__path__ = []
         # Make providers
         self._init_providers()
         #
