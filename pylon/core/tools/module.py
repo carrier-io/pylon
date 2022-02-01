@@ -221,7 +221,7 @@ class ModuleDescriptor:  # pylint: disable=R0902
                 self.context.api.add_resource(
                     resource,
                     *resource_urls,
-                    endpoint=f"{module_name}.api.{api_version}.{resource_name}",
+                    endpoint=f"api.{api_version}.{module_name}.{resource_name}",
                     resource_class_kwargs={
                         "module": self.module,
                     }
