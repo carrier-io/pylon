@@ -285,6 +285,8 @@ class ModuleManager:
         if "tools" not in sys.modules:
             sys.modules["tools"] = types.ModuleType("tools")
             sys.modules["tools"].__path__ = []
+        # Register context as a tool
+        setattr(sys.modules["tools"], "context", self.context)
         # Make providers
         self._init_providers()
         #
