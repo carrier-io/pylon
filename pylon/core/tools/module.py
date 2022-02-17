@@ -235,6 +235,7 @@ class ModuleDescriptor:  # pylint: disable=R0902
             if module_slots:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
+                obj.__module__ = obj.func.__module__
             self.context.slot_manager.register_callback(name, obj)
 
     def template_name(self, name, module=None):
