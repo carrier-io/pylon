@@ -24,6 +24,7 @@
 
 routes_registry = dict()  # module -> [routes]  # pylint: disable=C0103
 slots_registry = dict()  # module -> [slots]  # pylint: disable=C0103
+rpcs_registry = dict()  # module -> [rpcs]  # pylint: disable=C0103
 
 
 def route(rule, **options):
@@ -54,6 +55,22 @@ def slot(name):
         #
         slot_item = (name, obj)
         slots_registry[module].append(slot_item)
+        #
+        return obj
+    #
+    return _decorator
+
+def rpc(name=None, proxy_name=None):
+    """ (Pre-)Register RPC """
+    #
+    def _decorator(obj):
+        module = ".".join(obj.__module__.split(".")[:2])
+        #
+        if module not in rpcs_registry:
+            rpcs_registry[module] = list()
+        #
+        rpc_item = (name, proxy_name, obj)
+        rpcs_registry[module].append(rpc_item)
         #
         return obj
     #

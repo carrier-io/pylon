@@ -238,6 +238,25 @@ class ModuleDescriptor:  # pylint: disable=R0902
                 obj.__module__ = obj.func.__module__
             self.context.slot_manager.register_callback(name, obj)
 
+    def init_rpcs(self, module_rpcs=True):
+        """ Register all decorated RPCs from this module """
+        rpcs = web.rpcs_registry.pop(f"plugins.{self.name}", list())
+        for rpc in rpcs:
+            name, proxy_name, obj = rpc
+            if module_rpcs:
+                obj = functools.partial(obj, self.module)
+                obj.__name__ = obj.func.__name__
+            self.context.rpc_manager.register_function(obj, name)
+            #
+            if proxy_name is not None and name is not None:
+                if hasattr(self.module, proxy_name):
+                    raise RuntimeError(f"Name '{proxy_name}' is already set")
+                #
+                setattr(
+                    self.module, proxy_name,
+                    getattr(self.context.rpc_manager.call, name)
+                )
+
     def template_name(self, name, module=None):
         """ Make prefixed template name """
         if module is None:
