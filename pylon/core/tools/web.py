@@ -23,6 +23,7 @@
 # from pylon.core.tools import log
 
 routes_registry = dict()  # module -> [routes]  # pylint: disable=C0103
+slots_registry = dict()  # module -> [slots]  # pylint: disable=C0103
 
 
 def route(rule, **options):
@@ -37,6 +38,22 @@ def route(rule, **options):
         #
         route_item = (rule, endpoint, obj, options)
         routes_registry[module].append(route_item)
+        #
+        return obj
+    #
+    return _decorator
+
+def slot(name):
+    """ (Pre-)Register slot """
+    #
+    def _decorator(obj):
+        module = ".".join(obj.__module__.split(".")[:2])
+        #
+        if module not in slots_registry:
+            slots_registry[module] = list()
+        #
+        slot_item = (name, obj)
+        slots_registry[module].append(slot_item)
         #
         return obj
     #
