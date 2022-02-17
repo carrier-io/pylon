@@ -227,11 +227,14 @@ class ModuleDescriptor:  # pylint: disable=R0902
                     }
                 )
 
-    def init_slots(self):
+    def init_slots(self, module_slots=True):
         """ Register all decorated slots from this module """
         slots = web.slots_registry.pop(f"plugins.{self.name}", list())
         for slot in slots:
             name, obj = slot
+            if module_slots:
+                obj = functools.partial(obj, self.module)
+                obj.__name__ = obj.func.__name__
             self.context.slot_manager.register_callback(name, obj)
 
     def template_name(self, name, module=None):
