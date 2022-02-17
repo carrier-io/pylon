@@ -257,6 +257,16 @@ class ModuleDescriptor:  # pylint: disable=R0902
                     getattr(self.context.rpc_manager.call, name)
                 )
 
+    def init_sio(self, module_sios=True):
+        """ Register all decorated SIO event listeners from this module """
+        sios = web.sios_registry.pop(f"plugins.{self.name}", list())
+        for sio in sios:
+            name, obj = sio
+            if module_sios:
+                obj = functools.partial(obj, self.module)
+                obj.__name__ = obj.func.__name__
+            self.context.sio.on(name, handler=obj)
+
     def template_name(self, name, module=None):
         """ Make prefixed template name """
         if module is None:

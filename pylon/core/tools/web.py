@@ -25,6 +25,7 @@
 routes_registry = dict()  # module -> [routes]  # pylint: disable=C0103
 slots_registry = dict()  # module -> [slots]  # pylint: disable=C0103
 rpcs_registry = dict()  # module -> [rpcs]  # pylint: disable=C0103
+sios_registry = dict()  # module -> [sio]  # pylint: disable=C0103
 
 
 def route(rule, **options):
@@ -71,6 +72,22 @@ def rpc(name=None, proxy_name=None):
         #
         rpc_item = (name, proxy_name, obj)
         rpcs_registry[module].append(rpc_item)
+        #
+        return obj
+    #
+    return _decorator
+
+def sio(name):
+    """ (Pre-)Register SocketIO event listener """
+    #
+    def _decorator(obj):
+        module = ".".join(obj.__module__.split(".")[:2])
+        #
+        if module not in sios_registry:
+            sios_registry[module] = list()
+        #
+        sio_item = (name, obj)
+        sios_registry[module].append(sio_item)
         #
         return obj
     #
