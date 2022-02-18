@@ -164,6 +164,31 @@ class ModuleDescriptor:  # pylint: disable=R0902
         # Make Blueprint
         result_blueprint = self.make_blueprint(url_prefix, static_url_prefix, use_template_prefix)
         # Add routes
+        if self.loader.has_directory("routes"):
+            module_pkg = self.loader.module_name
+            module_name = self.name
+            #
+            for route_resource in importlib.resources.contents(
+                    f"{module_pkg}.routes"
+            ):
+                if not self.loader.has_file(f"routes/{route_resource}"):
+                    continue
+                if route_resource.startswith("_") or not route_resource.endswith(".py"):
+                    continue
+                #
+                resource_name, _ = os.path.splitext(route_resource)
+                #
+                try:
+                    resource = importlib.import_module(
+                        f"{module_pkg}.routes.{resource_name}"
+                    ).Route
+                except:  # pylint: disable=W0702
+                    log.exception(
+                        "Failed to import Route module: %s",
+                        resource_name,
+                    )
+                    continue
+        #
         routes = web.routes_registry.pop(f"plugins.{self.name}", list())
         for route in routes:
             rule, endpoint, obj, options = route
