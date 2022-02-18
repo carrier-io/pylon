@@ -199,9 +199,16 @@ class ModuleDescriptor:  # pylint: disable=R0902
                 #
                 resource_name, _ = os.path.splitext(api_resource)
                 #
-                resource = importlib.import_module(
-                    f"{module_pkg}.api.{api_version}.{resource_name}"
-                ).API
+                try:
+                    resource = importlib.import_module(
+                        f"{module_pkg}.api.{api_version}.{resource_name}"
+                    ).API
+                except:  # pylint: disable=W0702
+                    log.exception(
+                        "Failed to import API module: %s.%s",
+                        api_version, resource_name,
+                    )
+                    continue
                 #
                 resource_urls = list()
                 if hasattr(resource, "url_params"):
@@ -229,6 +236,31 @@ class ModuleDescriptor:  # pylint: disable=R0902
 
     def init_slots(self, module_slots=True):
         """ Register all decorated slots from this module """
+        if self.loader.has_directory("slots"):
+            module_pkg = self.loader.module_name
+            module_name = self.name
+            #
+            for slot_resource in importlib.resources.contents(
+                    f"{module_pkg}.slots"
+            ):
+                if not self.loader.has_file(f"slots/{slot_resource}"):
+                    continue
+                if slot_resource.startswith("_") or not slot_resource.endswith(".py"):
+                    continue
+                #
+                resource_name, _ = os.path.splitext(slot_resource)
+                #
+                try:
+                    resource = importlib.import_module(
+                        f"{module_pkg}.slots.{resource_name}"
+                    ).Slot
+                except:  # pylint: disable=W0702
+                    log.exception(
+                        "Failed to import Slot module: %s",
+                        resource_name,
+                    )
+                    continue
+        #
         slots = web.slots_registry.pop(f"plugins.{self.name}", list())
         for slot in slots:
             name, obj = slot
@@ -240,6 +272,31 @@ class ModuleDescriptor:  # pylint: disable=R0902
 
     def init_rpcs(self, module_rpcs=True):
         """ Register all decorated RPCs from this module """
+        if self.loader.has_directory("rpc"):
+            module_pkg = self.loader.module_name
+            module_name = self.name
+            #
+            for rpc_resource in importlib.resources.contents(
+                    f"{module_pkg}.rpc"
+            ):
+                if not self.loader.has_file(f"rpc/{rpc_resource}"):
+                    continue
+                if rpc_resource.startswith("_") or not rpc_resource.endswith(".py"):
+                    continue
+                #
+                resource_name, _ = os.path.splitext(rpc_resource)
+                #
+                try:
+                    resource = importlib.import_module(
+                        f"{module_pkg}.rpc.{resource_name}"
+                    ).RPC
+                except:  # pylint: disable=W0702
+                    log.exception(
+                        "Failed to import RPC module: %s",
+                        resource_name,
+                    )
+                    continue
+        #
         rpcs = web.rpcs_registry.pop(f"plugins.{self.name}", list())
         for rpc in rpcs:
             name, proxy_name, obj = rpc
@@ -259,6 +316,31 @@ class ModuleDescriptor:  # pylint: disable=R0902
 
     def init_sio(self, module_sios=True):
         """ Register all decorated SIO event listeners from this module """
+        if self.loader.has_directory("sio"):
+            module_pkg = self.loader.module_name
+            module_name = self.name
+            #
+            for sio_resource in importlib.resources.contents(
+                    f"{module_pkg}.sio"
+            ):
+                if not self.loader.has_file(f"sio/{sio_resource}"):
+                    continue
+                if sio_resource.startswith("_") or not sio_resource.endswith(".py"):
+                    continue
+                #
+                resource_name, _ = os.path.splitext(sio_resource)
+                #
+                try:
+                    resource = importlib.import_module(
+                        f"{module_pkg}.sio.{resource_name}"
+                    ).SIO
+                except:  # pylint: disable=W0702
+                    log.exception(
+                        "Failed to import SIO module: %s",
+                        resource_name,
+                    )
+                    continue
+        #
         sios = web.sios_registry.pop(f"plugins.{self.name}", list())
         for sio in sios:
             name, obj = sio
