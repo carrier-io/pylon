@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # coding=utf-8
+# pylint: disable=C0302
 
 #   Copyright 2020 getcarrier.io
 #
@@ -155,7 +156,7 @@ class ModuleDescriptor:  # pylint: disable=R0902
         #
         return result_blueprint
 
-    def init_blueprint(  # pylint: disable=R0913
+    def init_blueprint(  # pylint: disable=R0913,R0914
             self,
             url_prefix=None, static_url_prefix=None, use_template_prefix=True,
             register_in_app=True, module_routes=True,
@@ -373,6 +374,42 @@ class ModuleDescriptor:  # pylint: disable=R0902
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
             self.context.sio.on(name, handler=obj)
+
+    def init_events(self, module_events=True):
+        """ Register all decorated events from this module """
+        if self.loader.has_directory("events"):
+            module_pkg = self.loader.module_name
+            module_name = self.name
+            #
+            for event_resource in importlib.resources.contents(
+                    f"{module_pkg}.events"
+            ):
+                if not self.loader.has_file(f"events/{event_resource}"):
+                    continue
+                if event_resource.startswith("_") or not event_resource.endswith(".py"):
+                    continue
+                #
+                resource_name, _ = os.path.splitext(event_resource)
+                #
+                try:
+                    resource = importlib.import_module(
+                        f"{module_pkg}.events.{resource_name}"
+                    ).Event
+                except:  # pylint: disable=W0702
+                    log.exception(
+                        "Failed to import Event module: %s",
+                        resource_name,
+                    )
+                    continue
+        #
+        events = web.events_registry.pop(f"plugins.{self.name}", list())
+        for event in events:
+            name, obj = event
+            if module_events:
+                obj = functools.partial(obj, self.module)
+                obj.__name__ = obj.func.__name__
+                obj.__module__ = obj.func.__module__
+            self.context.event_manager.register_listener(name, obj)
 
     def template_name(self, name, module=None):
         """ Make prefixed template name """
