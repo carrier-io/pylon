@@ -411,6 +411,25 @@ class ModuleDescriptor:  # pylint: disable=R0902
                 obj.__module__ = obj.func.__module__
             self.context.event_manager.register_listener(name, obj)
 
+    def init_all(  # pylint: disable=R0913
+            self,
+            url_prefix=None, static_url_prefix=None, use_template_prefix=True,
+            register_in_app=True, module_routes=True,
+            module_slots=True,
+            module_rpcs=True,
+            module_events=True,
+            module_sios=True,
+        ):
+        """ Shortcut to perform fast basic init of this module services """
+        self.init_rpcs(module_rpcs)
+        self.init_events(module_events)
+        self.init_slots(module_slots)
+        self.init_sio(module_sios)
+        self.init_api()
+        return self.init_blueprint(
+            url_prefix, static_url_prefix, use_template_prefix, register_in_app, module_routes
+        )
+
     def template_name(self, name, module=None):
         """ Make prefixed template name """
         if module is None:
