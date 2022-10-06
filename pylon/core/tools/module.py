@@ -776,12 +776,14 @@ class ModuleManager:
         """ Activate loader """
         sys.meta_path.insert(0, loader)
         importlib.invalidate_caches()
+        pkg_resources._initialize_master_working_set()  # pylint: disable=W0212
 
     @staticmethod
     def activate_path(path):
         """ Activate path """
         sys.path.insert(0, path)
         importlib.invalidate_caches()
+        pkg_resources._initialize_master_working_set()  # pylint: disable=W0212
 
     @staticmethod
     def get_user_site_path(base):
