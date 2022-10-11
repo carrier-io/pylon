@@ -82,10 +82,20 @@ def patched_paramiko_client_SSHClient_auth(original_auth):  # pylint: disable=C0
             target_pkey = key_filenames[0]
             target_key_filenames = list()
             return original_auth(
+                self,
+                username, password, target_pkey, target_key_filenames, allow_agent, look_for_keys,
+                gss_auth, gss_kex, gss_deleg_creds, gss_host, passphrase,
+            )
+        if isinstance(key_filenames, paramiko.RSAKey):
+            target_pkey = key_filenames
+            target_key_filenames = list()
+            return original_auth(
+                self,
                 username, password, target_pkey, target_key_filenames, allow_agent, look_for_keys,
                 gss_auth, gss_kex, gss_deleg_creds, gss_host, passphrase,
             )
         return original_auth(
+            self,
             username, password, pkey, key_filenames, allow_agent, look_for_keys,
             gss_auth, gss_kex, gss_deleg_creds, gss_host, passphrase,
         )
