@@ -624,6 +624,9 @@ class ModuleManager:
             cache_hash_chunks, module_site_paths, module_constraint_paths = activated_items
         #
         for module_descriptor in module_descriptors:
+            if module_descriptor.name in self.settings.get('skip', []):
+                log.warning('Skipping module init %s', module_descriptor.name)
+                continue
             all_required_dependencies_present = True
             #
             for required_dependency in module_descriptor.metadata.get("depends_on", list()):
