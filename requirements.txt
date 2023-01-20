@@ -1,6 +1,6 @@
 amqp==5.1.1
 aniso8601==9.0.1
-arbiter @ git+https://github.com/aspect13/arbiter.git
+arbiter @ git+https://github.com/carrier-io/arbiter.git
 async-timeout==4.0.2
 attrs==21.4.0
 bcrypt==3.2.0
