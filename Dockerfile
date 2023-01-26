@@ -1,18 +1,10 @@
-# FROM golang:1.16
-# WORKDIR /go/src/
-#
-# COPY pylon/core/tools/minio/minio_madmin.go .
-# RUN set -x \
-#   && go get -d -v github.com/minio/minio/pkg/madmin \
-#   && go build -o minio_madmin.so -buildmode=c-shared minio_madmin.go
 
-FROM python:3.8
+FROM --platform=$BUILDPLATFORM python:3.10
 WORKDIR /usr/src/app
 
 COPY ./ ./pylon
-# COPY --from=0 /go/src/minio_madmin.so pylon/pylon/core/tools/minio/
-
 RUN set -x \
+  && pip install --upgrade pip \
   && pip install --no-cache-dir ./pylon \
   && rm -r ./pylon
 
