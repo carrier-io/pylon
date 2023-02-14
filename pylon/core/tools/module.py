@@ -411,6 +411,25 @@ class ModuleDescriptor:  # pylint: disable=R0902
                 obj.__module__ = obj.func.__module__
             self.context.event_manager.register_listener(name, obj)
 
+    def init_methods(self, module_methods=True):
+        """ Register all decorated methods from this module """
+        methods = web.methods_registry.pop(f"plugins.{self.name}", list())
+        for method in methods:
+            name, obj = method
+            if name is None:
+                name = obj.__name__
+            if module_methods:
+                obj = functools.partial(obj, self.module)
+                obj.__name__ = obj.func.__name__
+                obj.__module__ = obj.func.__module__
+                if hasattr(self.module, name):
+                    raise RuntimeError(f"Name '{name}' is already set")
+                #
+                setattr(
+                    self.module, name,
+                    obj
+                )
+
     def init_all(  # pylint: disable=R0913
             self,
             url_prefix=None, static_url_prefix=None, use_template_prefix=True,
@@ -419,9 +438,11 @@ class ModuleDescriptor:  # pylint: disable=R0902
             module_rpcs=True,
             module_events=True,
             module_sios=True,
+            module_methods=True,
         ):
         """ Shortcut to perform fast basic init of this module services """
         self.init_rpcs(module_rpcs)
+        self.init_methods(module_methods)
         self.init_events(module_events)
         self.init_slots(module_slots)
         self.init_sio(module_sios)

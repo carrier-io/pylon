@@ -27,6 +27,7 @@ slots_registry = dict()  # module -> [slots]  # pylint: disable=C0103
 rpcs_registry = dict()  # module -> [rpcs]  # pylint: disable=C0103
 sios_registry = dict()  # module -> [sio]  # pylint: disable=C0103
 events_registry = dict()  # module -> [event]  # pylint: disable=C0103
+methods_registry = dict()  # module -> [method]  # pylint: disable=C0103
 
 
 def route(rule, **options):
@@ -105,6 +106,22 @@ def event(name):
         #
         event_item = (name, obj)
         events_registry[module].append(event_item)
+        #
+        return obj
+    #
+    return _decorator
+
+def method(name=None):
+    """ (Pre-)Register method """
+    #
+    def _decorator(obj):
+        module = ".".join(obj.__module__.split(".")[:2])
+        #
+        if module not in methods_registry:
+            methods_registry[module] = list()
+        #
+        method_item = (name, obj)
+        methods_registry[module].append(method_item)
         #
         return obj
     #
