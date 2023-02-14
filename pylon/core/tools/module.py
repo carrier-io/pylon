@@ -413,6 +413,31 @@ class ModuleDescriptor:  # pylint: disable=R0902
 
     def init_methods(self, module_methods=True):
         """ Register all decorated methods from this module """
+        if self.loader.has_directory("methods"):
+            module_pkg = self.loader.module_name
+            module_name = self.name
+            #
+            for method_resource in importlib.resources.contents(
+                    f"{module_pkg}.methods"
+            ):
+                if not self.loader.has_file(f"methods/{method_resource}"):
+                    continue
+                if method_resource.startswith("_") or not method_resource.endswith(".py"):
+                    continue
+                #
+                resource_name, _ = os.path.splitext(method_resource)
+                #
+                try:
+                    resource = importlib.import_module(
+                        f"{module_pkg}.methods.{resource_name}"
+                    ).Method
+                except:  # pylint: disable=W0702
+                    log.exception(
+                        "Failed to import Method module: %s",
+                        resource_name,
+                    )
+                    continue
+        #
         methods = web.methods_registry.pop(f"plugins.{self.name}", list())
         for method in methods:
             name, obj = method
@@ -422,13 +447,24 @@ class ModuleDescriptor:  # pylint: disable=R0902
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
                 obj.__module__ = obj.func.__module__
-                if hasattr(self.module, name):
-                    raise RuntimeError(f"Name '{name}' is already set")
-                #
-                setattr(
-                    self.module, name,
-                    obj
-                )
+            #
+            if hasattr(self.module, name):
+                raise RuntimeError(f"Name '{name}' is already set")
+            #
+            setattr(
+                self.module, name,
+                obj
+            )
+
+    def init_inits(self, module_inits=True):
+        """ Run all decorated inits from this module """
+        # NB: Inits are loaded by init_methods()
+        inits = web.inits_registry.pop(f"plugins.{self.name}", list())
+        for init in inits:
+            if module_inits:
+                init(self.module)
+            else:
+                init()
 
     def init_all(  # pylint: disable=R0913
             self,
@@ -439,14 +475,16 @@ class ModuleDescriptor:  # pylint: disable=R0902
             module_events=True,
             module_sios=True,
             module_methods=True,
+            module_inits=True
         ):
         """ Shortcut to perform fast basic init of this module services """
         self.init_rpcs(module_rpcs)
-        self.init_methods(module_methods)
         self.init_events(module_events)
         self.init_slots(module_slots)
         self.init_sio(module_sios)
         self.init_api()
+        self.init_methods(module_methods)
+        self.init_inits(module_inits)
         return self.init_blueprint(
             url_prefix, static_url_prefix, use_template_prefix, register_in_app, module_routes
         )
