@@ -1,5 +1,5 @@
 
-FROM --platform=$TARGETPLATFORM python:3.11
+FROM python:3.11
 WORKDIR /usr/src/app
 
 COPY ./ ./pylon
