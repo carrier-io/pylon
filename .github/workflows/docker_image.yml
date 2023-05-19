@@ -38,6 +38,6 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           push: true
-          tags: ${{ github.event.inputs.docker_tag }}
+          tags: ${{ inputs.docker_tag }}
           builder: ${{ steps.buildx.outputs.name }}
           platforms: linux/amd64,linux/arm64
