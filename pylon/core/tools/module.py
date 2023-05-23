@@ -29,8 +29,12 @@ import zipfile
 import tempfile
 import functools
 import posixpath
-import importlib
 import subprocess
+import importlib
+from importlib.abc import MetaPathFinder, ResourceReader
+from importlib.machinery import ModuleSpec, PathFinder
+from importlib.util import spec_from_file_location
+
 import pkg_resources
 
 import yaml  # pylint: disable=E0401
@@ -930,7 +934,7 @@ class ModuleDescriptorProxy:  # pylint: disable=R0903
         return self.__module_manager.modules[name]
 
 
-class LocalModuleLoader(importlib.machinery.PathFinder):
+class LocalModuleLoader(PathFinder):
     """ Allows to load modules from specific location """
 
     def __init__(self, module_name, module_path):
@@ -964,7 +968,7 @@ class LocalModuleLoader(importlib.machinery.PathFinder):
         if filename is None:
             return None
         #
-        return importlib.util.spec_from_file_location(fullname, filename)
+        return spec_from_file_location(fullname, filename)
 
     def get_data(self, path):
         """ Read data resource """
@@ -992,7 +996,7 @@ class LocalModuleLoader(importlib.machinery.PathFinder):
         return self
 
 
-class DataModuleLoader(importlib.abc.MetaPathFinder):
+class DataModuleLoader(MetaPathFinder):
     """ Allows to load modules from ZIP in-memory data """
 
     def __init__(self, module_name, module_data):
@@ -1026,7 +1030,7 @@ class DataModuleLoader(importlib.abc.MetaPathFinder):
         if filename is None:
             return None
         #
-        return importlib.machinery.ModuleSpec(
+        return ModuleSpec(
             fullname, self, origin=filename, is_package=is_package
         )
 
@@ -1143,7 +1147,7 @@ class DataModuleProvider(pkg_resources.NullProvider):  # pylint: disable=W0223
         return files + dirs
 
 
-class DataModuleResourceReader(importlib.abc.ResourceReader):
+class DataModuleResourceReader(ResourceReader):
     """ Allows to read resources from ZIP in-memory data """
 
     def __init__(self, loader, path):
