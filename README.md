@@ -2,6 +2,9 @@
 
 Plugin based galloper core
 
+To run pylon `CORE_CONFIG_SEED` needs to be specified in env
+in format `file:/path/to/config.yml`
+
 ### Example command to build arm image:
 `docker buildx build --platform linux/arm64 -f "Dockerfile" -t "pylon:local" .`
 
