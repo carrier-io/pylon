@@ -55,7 +55,8 @@ class RpcManager:
         #
         self.node = arbiter.RpcNode(
             event_node,
-            id_prefix=rpc_config.get("id_prefix", f"{self.context.node_name}_")
+            id_prefix=rpc_config.get("id_prefix", f"{self.context.node_name}_"),
+            trace=rpc_config.get("trace", False),
         )
         self.node.start()
         #
