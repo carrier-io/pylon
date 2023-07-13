@@ -80,6 +80,8 @@ class ModuleDescriptor:  # pylint: disable=R0902
         self.requirements_path = None
         #
         self.module = None
+        self.prepared = False
+        self.activated = False
 
     def load_config(self):
         """ Load custom (or default) configuration """
@@ -570,11 +572,12 @@ class ModuleManager:
             preload_module_meta_map, preload_module_order,
         )
         # Install/get/activate requirements and initialize preload modules
-        preloaded_items = self._activate_modules(preload_module_descriptors)
+        preloaded_items = self._prepare_modules(preload_module_descriptors)
+        self._activate_modules(preload_module_descriptors)
         #
         # Target
         #
-        log.info("Initializing modules")
+        log.info("Preparing modules")
         # Create loaders for target modules
         target_module_meta_map = self._make_target_module_meta_map()
         # Resolve target module load order
@@ -585,8 +588,11 @@ class ModuleManager:
         target_module_descriptors = self._make_descriptors(
             target_module_meta_map, target_module_order,
         )
-        # Install/get/activate requirements and initialize target modules
-        self._activate_modules(target_module_descriptors, preloaded_items)
+        # Install/get requirements
+        self._prepare_modules(target_module_descriptors, preloaded_items)
+        # Activate and init modules
+        log.info("Activating modules")
+        self._activate_modules(target_module_descriptors)
 
     def _make_preload_module_meta_map(self):
         module_meta_map = dict()  # module_name -> (metadata, loader)
@@ -678,17 +684,17 @@ class ModuleManager:
         #
         return module_descriptors
 
-    def _activate_modules(self, module_descriptors, activated_items=None):  # pylint: disable=R0914,R0915
-        if activated_items is None:
+    def _prepare_modules(self, module_descriptors, prepared_items=None):  # pylint: disable=R0914,R0915
+        if prepared_items is None:
             cache_hash_chunks = list()
             module_site_paths = list()
             module_constraint_paths = list()
         else:
-            cache_hash_chunks, module_site_paths, module_constraint_paths = activated_items
+            cache_hash_chunks, module_site_paths, module_constraint_paths = prepared_items
         #
         for module_descriptor in module_descriptors:
-            if module_descriptor.name in self.settings.get('skip', []):
-                log.warning('Skipping module init %s', module_descriptor.name)
+            if module_descriptor.name in self.settings.get("skip", []):
+                log.warning("Skipping module init %s", module_descriptor.name)
                 continue
             all_required_dependencies_present = True
             #
@@ -766,6 +772,15 @@ class ModuleManager:
                 #
                 module_constraint_paths.append(frozen_requirements)
             #
+            module_descriptor.prepared = True
+        #
+        return cache_hash_chunks, module_site_paths, module_constraint_paths
+
+    def _activate_modules(self, module_descriptors):  # pylint: disable=R0914,R0915
+        for module_descriptor in module_descriptors:
+            if not module_descriptor.prepared:
+                log.warning("Skipping un-prepared module: %s", module_descriptor.name)
+            #
             self.activate_path(module_descriptor.requirements_path)
             self.activate_loader(module_descriptor.loader)
             #
@@ -782,8 +797,7 @@ class ModuleManager:
                 continue
             #
             self.modules[module_descriptor.name] = module_descriptor
-        #
-        return cache_hash_chunks, module_site_paths, module_constraint_paths
+            module_descriptor.activated = True
 
     def deinit_modules(self):
         """ De-init and unload modules """
