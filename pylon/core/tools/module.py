@@ -694,20 +694,7 @@ class ModuleManager:
         #
         for module_descriptor in module_descriptors:
             if module_descriptor.name in self.settings.get("skip", []):
-                log.warning("Skipping module init %s", module_descriptor.name)
-                continue
-            all_required_dependencies_present = True
-            #
-            for required_dependency in module_descriptor.metadata.get("depends_on", list()):
-                if required_dependency not in self.modules:
-                    log.error(
-                        "Required dependency is not present: %s (required by %s)",
-                        required_dependency, module_descriptor.name,
-                    )
-                    all_required_dependencies_present = False
-            #
-            if not all_required_dependencies_present:
-                log.error("Skipping module: %s", module_descriptor.name)
+                log.warning("Skipping module prepare: %s", module_descriptor.name)
                 continue
             #
             requirements_hash = hashlib.sha256(module_descriptor.requirements.encode()).hexdigest()
@@ -780,6 +767,20 @@ class ModuleManager:
         for module_descriptor in module_descriptors:
             if not module_descriptor.prepared:
                 log.warning("Skipping un-prepared module: %s", module_descriptor.name)
+            #
+            all_required_dependencies_present = True
+            #
+            for required_dependency in module_descriptor.metadata.get("depends_on", list()):
+                if required_dependency not in self.modules:
+                    log.error(
+                        "Required dependency is not present: %s (required by %s)",
+                        required_dependency, module_descriptor.name,
+                    )
+                    all_required_dependencies_present = False
+            #
+            if not all_required_dependencies_present:
+                log.error("Skipping module: %s", module_descriptor.name)
+                continue
             #
             self.activate_path(module_descriptor.requirements_path)
             self.activate_loader(module_descriptor.loader)
