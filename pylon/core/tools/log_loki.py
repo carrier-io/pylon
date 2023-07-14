@@ -237,6 +237,7 @@ class CarrierLokiBufferedLogHandler(logging.handlers.BufferingHandler):
             print("[FATAL] Exception during formatting logs")
             traceback.print_exc()
         finally:
+            self.last_flush = time.time()
             self.release()
         #
         try:
@@ -246,8 +247,6 @@ class CarrierLokiBufferedLogHandler(logging.handlers.BufferingHandler):
             # In this case we should NOT use logging to log logging error. Only print()
             print("[FATAL] Exception during sending logs to storage")
             traceback.print_exc()
-        finally:
-            self.last_flush = time.time()
 
 
 class PeriodicFlush(threading.Thread):  # pylint: disable=R0903
