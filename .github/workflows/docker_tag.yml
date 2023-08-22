@@ -37,7 +37,7 @@ jobs:
       - name: Build and push Alpine
         uses: docker/build-push-action@v4
         with:
-          tags: getcarrier/pylon:${{ github.ref_name }}
+          tags: getcarrier/pylon:${{ github.ref_name }}-alpine
           builder: ${{ steps.buildx.outputs.name }}
           platforms: linux/amd64,linux/arm64
           push: true
