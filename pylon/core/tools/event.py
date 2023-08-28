@@ -17,6 +17,7 @@
 
 """ Core events """
 
+import ssl
 import functools
 
 import arbiter  # pylint: disable=E0401
@@ -33,6 +34,17 @@ class EventManager:
         events_rabbitmq = self.context.settings.get("events", dict()).get("rabbitmq", dict())
         if events_rabbitmq:
             try:
+                ssl_context=None
+                ssl_server_hostname=None
+                #
+                if events_rabbitmq.get("use_ssl", False):
+                    ssl_context = ssl.create_default_context()
+                    if events_rabbitmq.get("ssl_verify", False) is True:
+                        ssl_context.verify_mode = ssl.CERT_REQUIRED
+                    else:
+                        ssl_context.verify_mode = ssl.CERT_NONE
+                    ssl_server_hostname = events_rabbitmq.get("host")
+                #
                 self.node = arbiter.EventNode(
                     host=events_rabbitmq.get("host"),
                     port=events_rabbitmq.get("port", 5672),
@@ -43,6 +55,9 @@ class EventManager:
                     hmac_key=events_rabbitmq.get("hmac_key", None),
                     hmac_digest=events_rabbitmq.get("hmac_digest", "sha512"),
                     callback_workers=events_rabbitmq.get("callback_workers", 1),
+                    ssl_context=ssl_context,
+                    ssl_server_hostname=ssl_server_hostname,
+                    mute_first_failed_connections=events_rabbitmq.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                 )
                 self.node.start()
             except:  # pylint: disable=W0702

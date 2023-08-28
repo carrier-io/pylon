@@ -17,6 +17,7 @@
 
 """ Core template RPC """
 
+import ssl
 import arbiter  # pylint: disable=E0401
 
 try:
@@ -35,6 +36,17 @@ class RpcManager:
         rpc_rabbitmq = rpc_config.get("rabbitmq", dict())
         if rpc_rabbitmq:
             try:
+                ssl_context=None
+                ssl_server_hostname=None
+                #
+                if rpc_rabbitmq.get("use_ssl", False):
+                    ssl_context = ssl.create_default_context()
+                    if rpc_rabbitmq.get("ssl_verify", False) is True:
+                        ssl_context.verify_mode = ssl.CERT_REQUIRED
+                    else:
+                        ssl_context.verify_mode = ssl.CERT_NONE
+                    ssl_server_hostname = rpc_rabbitmq.get("host")
+                #
                 event_node = arbiter.EventNode(
                     host=rpc_rabbitmq.get("host"),
                     port=rpc_rabbitmq.get("port", 5672),
@@ -45,6 +57,9 @@ class RpcManager:
                     hmac_key=rpc_rabbitmq.get("hmac_key", None),
                     hmac_digest=rpc_rabbitmq.get("hmac_digest", "sha512"),
                     callback_workers=rpc_rabbitmq.get("callback_workers", 1),
+                    ssl_context=ssl_context,
+                    ssl_server_hostname=ssl_server_hostname,
+                    mute_first_failed_connections=rpc_rabbitmq.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                 )
                 event_node.start()
             except:  # pylint: disable=W0702

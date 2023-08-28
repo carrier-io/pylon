@@ -83,8 +83,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Enable Loki logging if requested in config
     log_loki.enable_loki_logging(context)
     # Make ModuleManager instance
+    log.info("Creating ModuleManager instance")
     context.module_manager = module.ModuleManager(context)
     # Make EventManager instance
+    log.info("Creating EventManager instance")
     context.event_manager = event.EventManager(context)
     # Add global URL prefix to context
     server.add_url_prefix(context)
@@ -105,8 +107,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Enable server-side sessions
     session.init_flask_sessions(context)
     # Make RpcManager instance
+    log.info("Creating RpcManager instance")
     context.rpc_manager = rpc.RpcManager(context)
     # Make SlotManager instance
+    log.info("Creating SlotManager instance")
     context.slot_manager = slot.SlotManager(context)
     # Apply patches needed for pure-python git and providers
     git.apply_patches()
