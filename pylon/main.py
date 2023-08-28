@@ -78,6 +78,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     if not context.settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
+    # Set environment overrides (e.g. to add env var with data from vault)
+    log.info("Setting environment overrides")
+    for key, value in context.settings.get("environment", dict()).items():
+        os.environ[key] = value
     # Save global node name
     context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
     # Enable Loki logging if requested in config
