@@ -43,7 +43,10 @@ class RpcManager:
                     ssl_context = ssl.create_default_context()
                     if rpc_rabbitmq.get("ssl_verify", False) is True:
                         ssl_context.verify_mode = ssl.CERT_REQUIRED
+                        ssl_context.check_hostname = True
+                        ssl_context.load_default_certs()
                     else:
+                        ssl_context.check_hostname = False
                         ssl_context.verify_mode = ssl.CERT_NONE
                     ssl_server_hostname = rpc_rabbitmq.get("host")
                 #
