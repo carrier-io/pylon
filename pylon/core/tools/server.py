@@ -50,7 +50,7 @@ def add_middlewares(context):
     #
     if context.settings.get("server", dict()).get("proxy", False):
         context.app.wsgi_app = ProxyFix(
-            context.app.wsgi_app, x_proto=1, x_host=1,
+            context.app.wsgi_app, x_for=1, x_proto=1,
         )
 
 
