@@ -47,7 +47,18 @@ def add_middlewares(context):
             noop_app, {context.url_prefix: context.app.wsgi_app},
         )
     #
-    if context.settings.get("server", dict()).get("proxy", False):
+    proxy_settings = context.settings.get("server", dict()).get("proxy", False)
+    #
+    if isinstance(proxy_settings, dict):
+        context.app.wsgi_app = ProxyFix(
+            context.app.wsgi_app,
+            x_for=proxy_settings.get("x_for", 1),
+            x_proto=proxy_settings.get("x_proto", 1),
+            x_host=proxy_settings.get("x_host", 0),
+            x_port=proxy_settings.get("x_port", 0),
+            x_prefix=proxy_settings.get("x_prefix", 0),
+        )
+    elif proxy_settings:
         context.app.wsgi_app = ProxyFix(
             context.app.wsgi_app, x_for=1, x_proto=1,
         )
