@@ -54,6 +54,7 @@ from pylon.core.tools import event
 from pylon.core.tools import seed
 from pylon.core.tools import git
 from pylon.core.tools import rpc
+from pylon.core.tools import ssl
 from pylon.core.tools import slot
 from pylon.core.tools import server
 from pylon.core.tools import session
@@ -87,6 +88,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         os.environ[key] = value
     # Save global node name
     context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
+    # Prepare SSL custom cert bundle
+    ssl.init(context)
     # Enable Loki logging if requested in config
     log_loki.enable_loki_logging(context)
     # Make ModuleManager instance
