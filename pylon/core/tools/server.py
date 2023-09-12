@@ -98,7 +98,7 @@ def create_socketio_instance(context):
         except:  # pylint: disable=W0702
             log.exception("Cannot make KombuManager instance, SocketIO is in standalone mode")
     #
-    if not context.debug:
+    if not context.debug and context.web_runtime == "gevent":
         sio = socketio.Server(
             async_mode="gevent",
             client_manager=client_manager,
