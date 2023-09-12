@@ -20,13 +20,13 @@
 """
 
 import io
-import os
 import logging
 import inspect
 import urllib3  # pylint: disable=E0401
 import requests  # pylint: disable=E0401
 
 from pylon.core import constants
+from pylon.core.tools import env
 
 
 def init(level=logging.INFO):
@@ -98,7 +98,7 @@ def exception(msg, *args, **kwargs):
 
 def enable_logging():
     """ Enable logging using log level supplied from env """
-    if os.environ.get("CORE_DEBUG_LOGGING", "").lower() in ["true", "yes"]:
+    if env.get_var("DEBUG_LOGGING", "").lower() in ["true", "yes"]:
         log_level = logging.DEBUG
     else:
         log_level = logging.INFO

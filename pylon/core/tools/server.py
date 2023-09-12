@@ -20,8 +20,6 @@
     Server tools
 """
 
-import os
-
 import socketio  # pylint: disable=E0401
 
 from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412
@@ -32,6 +30,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 
 from pylon.core import constants
 from pylon.core.tools import log
+from pylon.core.tools import env
 
 
 def add_url_prefix(context):
@@ -108,8 +107,8 @@ def create_socketio_instance(context):
 
 def run_server(context):
     """ Run WSGI or Flask server """
-    if not context.debug:
-        log.info("Starting WSGI server")
+    if not context.debug and context.web_runtime == "gevent":
+        log.info("Starting gevent WSGI server")
         http_server = WSGIServer(
             (
                 context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
@@ -119,17 +118,25 @@ def run_server(context):
             handler_class=WebSocketHandler,
         )
         http_server.serve_forever()
-    else:
+    elif not context.debug:
         log.info("Starting Flask server")
         context.app.run(
             host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
             port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
-            debug=context.debug,
-            use_reloader=context.debug,
+            debug=False,
+            use_reloader=False,
+        )
+    else:
+        log.info("Starting Flask server in debug mode")
+        context.app.run(
+            host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
+            port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+            debug=True,
+            use_reloader=True,
             reloader_type=context.settings.get("server", dict()).get(
-                "reloader_type", os.environ.get("CORE_RELOADER_TYPE", "auto"),
+                "reloader_type", env.get_var("RELOADER_TYPE", "auto"),
             ),
             reloader_interval=context.settings.get("server", dict()).get(
-                "reloader_interval", int(os.environ.get("CORE_RELOADER_INTERVAL", "1")),
+                "reloader_interval", int(env.get_var("RELOADER_INTERVAL", "1")),
             ),
         )

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # coding=utf-8
-# pylint: disable=C0411,C0413
+# pylint: disable=C0411,C0412,C0413
 
 #   Copyright 2020-2021 getcarrier.io
 #
@@ -24,11 +24,12 @@
 # Before all other imports and code: patch standard library and other libraries to use async I/O
 #
 
-import os
+from pylon.core.tools import env
 
-CORE_DEVELOPMENT_MODE = os.environ.get("CORE_DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
+CORE_DEVELOPMENT_MODE = env.get_var("DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
+CORE_WEB_RUNTIME = env.get_var("WEB_RUNTIME", "flask")
 
-if not CORE_DEVELOPMENT_MODE:
+if not CORE_DEVELOPMENT_MODE and CORE_WEB_RUNTIME == "gevent":
     import gevent.monkey  # pylint: disable=E0401
     gevent.monkey.patch_all(thread=False, subprocess=False)
     #
@@ -39,6 +40,7 @@ if not CORE_DEVELOPMENT_MODE:
 # Normal imports and code below
 #
 
+import os
 import socket
 import signal
 
@@ -72,6 +74,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context = Context()
     # Save debug status
     context.debug = CORE_DEVELOPMENT_MODE
+    context.web_runtime = CORE_WEB_RUNTIME
     # Load settings from seed
     log.info("Loading and parsing settings")
     context.settings = seed.load_settings()
