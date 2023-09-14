@@ -2,7 +2,7 @@
 
 Plugin based galloper core
 
-To run pylon `CORE_CONFIG_SEED` needs to be specified in env
+To run pylon `PYLON_CONFIG_SEED` (or legacy `CORE_CONFIG_SEED`) needs to be specified in env
 in format `file:/path/to/config.yml`
 
 ### Example command to build arm image:
