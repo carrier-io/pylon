@@ -91,7 +91,13 @@ def patched_dulwich_client_HttpGitClient_from_parsedurl(original_from_parsedurl)
     def patched_from_parsedurl(self, *args, config=None, **kwargs):
         ssl_cert_file = os.environ.get("SSL_CERT_FILE")
         if ssl_cert_file and config:
-            config.set(b"http", b"sslCAInfo", ssl_cert_file)
+            try:
+                config.set(b"http", b"sslCAInfo", ssl_cert_file)
+            except:  # pylint: disable=W0702
+                from dulwich.config import ConfigDict  # pylint: disable=E0401,C0415
+                ssl_config = ConfigDict()
+                ssl_config.set(b"http", b"sslCAInfo", ssl_cert_file)
+                config.backends.insert(0, ssl_config)
 
         return original_from_parsedurl(self, *args, config=config, **kwargs)
 
