@@ -20,6 +20,8 @@
     Server tools
 """
 
+import sys
+
 import socketio  # pylint: disable=E0401
 
 from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412
@@ -153,3 +155,9 @@ def run_server(context):
                 "reloader_interval", int(env.get_var("RELOADER_INTERVAL", "1")),
             ),
         )
+
+
+def restart():
+    """ Stop server (will be restarted by docker/runtime) """
+    log.info("Stopping server for a restart")
+    sys.exit()
