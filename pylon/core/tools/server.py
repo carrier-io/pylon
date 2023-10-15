@@ -143,7 +143,9 @@ def run_server(context):
             host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
             port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
             debug=True,
-            use_reloader=True,
+            use_reloader=context.settings.get("server", dict()).get(
+                "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+            ),
             reloader_type=context.settings.get("server", dict()).get(
                 "reloader_type", env.get_var("RELOADER_TYPE", "auto"),
             ),
