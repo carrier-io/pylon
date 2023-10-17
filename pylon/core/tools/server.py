@@ -20,7 +20,8 @@
     Server tools
 """
 
-import sys
+import os
+import signal
 
 import socketio  # pylint: disable=E0401
 
@@ -160,4 +161,4 @@ def run_server(context):
 def restart():
     """ Stop server (will be restarted by docker/runtime) """
     log.info("Stopping server for a restart")
-    sys.exit()
+    os.kill(os.getpid(), signal.SIGTERM)
