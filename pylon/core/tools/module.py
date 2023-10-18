@@ -45,6 +45,7 @@ from pylon.core.tools import log
 from pylon.core.tools import web
 from pylon.core.tools import process
 from pylon.core.tools import dependency
+from pylon.core.tools import env
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.config import config_substitution, vault_secrets
 
@@ -537,7 +538,11 @@ class ModuleManager:
 
     def init_modules(self):
         """ Load and init modules """
-        if self.context.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        reloader_used = self.context.settings.get("server", dict()).get(
+            "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+        )
+        #
+        if self.context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             log.info(
                 "Running in development mode before reloader is started. Skipping module loading"
             )
@@ -802,7 +807,11 @@ class ModuleManager:
 
     def deinit_modules(self):
         """ De-init and unload modules """
-        if self.context.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        reloader_used = self.context.settings.get("server", dict()).get(
+            "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+        )
+        #
+        if self.context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             log.info(
                 "Running in development mode before reloader is started. Skipping module unloading"
             )
