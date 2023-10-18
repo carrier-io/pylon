@@ -45,6 +45,7 @@ def init(level=logging.INFO):
     requests.packages.urllib3.disable_warnings()  # pylint: disable=E1101
     # Disable additional logging
     logging.getLogger("pika").setLevel(logging.WARNING)
+    logging.getLogger("paramiko.hostkeys").setLevel(logging.WARNING)
 
 
 def get_logger():
