@@ -48,6 +48,7 @@ import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
 
 from pylon.core.tools import log
+from pylon.core.tools import log_syslog
 from pylon.core.tools import log_loki
 from pylon.core.tools import module
 from pylon.core.tools import event
@@ -90,6 +91,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
     # Prepare SSL custom cert bundle
     ssl.init(context)
+    # Enable SysLog logging if requested in config
+    log_syslog.enable_syslog_logging(context)
     # Enable Loki logging if requested in config
     log_loki.enable_loki_logging(context)
     # Make ModuleManager instance
