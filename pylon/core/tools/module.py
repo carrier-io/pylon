@@ -769,6 +769,14 @@ class ModuleManager:
         return cache_hash_chunks, module_site_paths, module_constraint_paths
 
     def _activate_modules(self, module_descriptors):  # pylint: disable=R0914,R0915
+        requirements_activation = self.settings["requirements"].get("activation", "steps")
+        #
+        if requirements_activation == "bulk":
+            log.info("Using bulk module requirements activation mode")
+            for module_descriptor in module_descriptors:
+                if module_descriptor.prepared:
+                    self.activate_path(module_descriptor.requirements_path)
+        #
         for module_descriptor in module_descriptors:
             if not module_descriptor.prepared:
                 log.warning("Skipping un-prepared module: %s", module_descriptor.name)
@@ -787,7 +795,9 @@ class ModuleManager:
                 log.error("Skipping module: %s", module_descriptor.name)
                 continue
             #
-            self.activate_path(module_descriptor.requirements_path)
+            if requirements_activation != "bulk":
+                self.activate_path(module_descriptor.requirements_path)
+            #
             self.activate_loader(module_descriptor.loader)
             #
             try:
@@ -910,6 +920,8 @@ class ModuleManager:
                 sys.executable,
                 "-m", "pip", "install",
                 "--user", "--no-warn-script-location",
+                "--disable-pip-version-check",
+                "--root-user-action=ignore",
             ] + c_args + [
                 "-r", requirements_path,
             ],
@@ -933,7 +945,12 @@ class ModuleManager:
             opt_args.append(requirements_path)
         #
         return subprocess.check_output(
-            [sys.executable, "-m", "pip", "freeze", "--user"] + opt_args,
+            [
+                sys.executable,
+                "-m", "pip", "freeze",
+                "--user",
+                "--disable-pip-version-check",
+            ] + opt_args,
             env=env,
         ).decode()
 
