@@ -32,6 +32,8 @@ class EventManager:
         self.context = context
         #
         events_rabbitmq = self.context.settings.get("events", dict()).get("rabbitmq", dict())
+        events_redis = self.context.settings.get("events", dict()).get("redis", dict())
+        #
         if events_rabbitmq:
             try:
                 ssl_context=None
@@ -66,6 +68,18 @@ class EventManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local events only")
                 self.node = arbiter.MockEventNode()
+        elif events_redis:
+            self.node = arbiter.RedisEventNode(
+                host=events_redis.get("host"),
+                port=events_redis.get("port", 6379),
+                password=events_redis.get("password", ""),
+                event_queue=events_redis.get("queue", "events"),
+                hmac_key=events_redis.get("hmac_key", None),
+                hmac_digest=events_redis.get("hmac_digest", "sha512"),
+                callback_workers=events_redis.get("callback_workers", 1),
+                mute_first_failed_connections=events_redis.get("mute_first_failed_connections", 10),
+                use_ssl=events_redis.get("use_ssl", False),
+            )
         else:
             self.node = arbiter.MockEventNode()
         #
