@@ -330,12 +330,25 @@ class ModuleDescriptor:  # pylint: disable=R0902
                     )
                     continue
         #
-        rpcs = web.rpcs_registry.pop(f"plugins.{self.name}", list())
+        rpcs = web.rpcs_registry.pop(f"plugins.{module_name}", list())
         for rpc in rpcs:
-            name, proxy_name, obj = rpc
+            name, proxy_name, auto_names, obj = rpc
             if module_rpcs:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
+            #
+            if auto_names and name is None and proxy_name is None:
+                try:
+                    callable_name = self._get_callable_name(obj)
+                    #
+                    proxy_name = callable_name
+                    name = f"{module_name}_{callable_name}"
+                    #
+                    log.debug("Set RPC name to: %s", name)
+                    log.debug("Set RPC proxy name to: %s", proxy_name)
+                except:  # pylint: disable=W0702
+                    log.exception("Failed to get callable name for: %s", obj)
+            #
             self.context.rpc_manager.register_function(obj, name)
             #
             if proxy_name is not None and name is not None:
@@ -346,6 +359,13 @@ class ModuleDescriptor:  # pylint: disable=R0902
                     self.module, proxy_name,
                     getattr(self.context.rpc_manager.call, name)
                 )
+
+    def _get_callable_name(self, func):
+        if hasattr(func, "__name__"):
+            return func.__name__
+        if isinstance(func, functools.partial):
+            return self._get_callable_name(func.func)
+        raise ValueError("Cannot guess callable name")
 
     def init_sio(self, module_sios=True):
         """ Register all decorated SIO event listeners from this module """

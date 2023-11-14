@@ -64,7 +64,7 @@ def slot(name):
     #
     return _decorator
 
-def rpc(name=None, proxy_name=None):
+def rpc(name=None, proxy_name=None, auto_names=True):
     """ (Pre-)Register RPC """
     #
     def _decorator(obj):
@@ -73,7 +73,7 @@ def rpc(name=None, proxy_name=None):
         if module not in rpcs_registry:
             rpcs_registry[module] = list()
         #
-        rpc_item = (name, proxy_name, obj)
+        rpc_item = (name, proxy_name, auto_names, obj)
         rpcs_registry[module].append(rpc_item)
         #
         return obj
