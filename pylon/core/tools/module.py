@@ -305,9 +305,9 @@ class ModuleDescriptor:  # pylint: disable=R0902
 
     def init_rpcs(self, module_rpcs=True):
         """ Register all decorated RPCs from this module """
+        module_name = self.name
         if self.loader.has_directory("rpc"):
             module_pkg = self.loader.module_name
-            module_name = self.name
             #
             for rpc_resource in importlib.resources.contents(
                     f"{module_pkg}.rpc"
