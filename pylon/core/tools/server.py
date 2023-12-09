@@ -25,9 +25,6 @@ import signal
 
 import socketio  # pylint: disable=E0401
 
-from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412
-from geventwebsocket.handler import WebSocketHandler  # pylint: disable=E0401,C0412
-
 from werkzeug.middleware.dispatcher import DispatcherMiddleware  # pylint: disable=E0401
 from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 
@@ -123,6 +120,8 @@ def run_server(context):
     """ Run WSGI or Flask server """
     if not context.debug and context.web_runtime == "gevent":
         log.info("Starting gevent WSGI server")
+        from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412,C0415
+        from geventwebsocket.handler import WebSocketHandler  # pylint: disable=E0401,C0412,C0415
         http_server = WSGIServer(
             (
                 context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
