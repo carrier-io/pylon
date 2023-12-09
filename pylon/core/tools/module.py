@@ -916,19 +916,21 @@ class ModuleManager:
             env=env,
         ).decode().strip()
 
-    @staticmethod
     def install_requirements(
-            requirements_path, target_site_base, additional_site_paths=None, constraint_paths=None,
+            self, requirements_path, target_site_base,
+            additional_site_paths=None, constraint_paths=None,
         ):
         """ Install requirements into target site """
-        if constraint_paths is None:
-            constraint_paths = list()
+        cache_dir = self.settings["requirements"].get("cache", "/tmp/pylon_pip_cache")
         #
-        env = os.environ.copy()
-        env["PYTHONUSERBASE"] = target_site_base
+        if constraint_paths is None:
+            constraint_paths = []
+        #
+        environ = os.environ.copy()
+        environ["PYTHONUSERBASE"] = target_site_base
         #
         if additional_site_paths is not None:
-            env["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
+            environ["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
         #
         c_args = []
         for const in constraint_paths:
@@ -942,22 +944,24 @@ class ModuleManager:
                 "--user", "--no-warn-script-location",
                 "--disable-pip-version-check",
                 "--root-user-action=ignore",
+                "--cache-dir", cache_dir,
             ] + c_args + [
                 "-r", requirements_path,
             ],
-            env=env,
+            env=environ,
         )
 
-    @staticmethod
     def freeze_site_requirements(
-            target_site_base, requirements_path=None, additional_site_paths=None
+            self, target_site_base, requirements_path=None, additional_site_paths=None
         ):
         """ Get installed requirements (a.k.a pip freeze) """
-        env = os.environ.copy()
-        env["PYTHONUSERBASE"] = target_site_base
+        cache_dir = self.settings["requirements"].get("cache", "/tmp/pylon_pip_cache")
+        #
+        environ = os.environ.copy()
+        environ["PYTHONUSERBASE"] = target_site_base
         #
         if additional_site_paths is not None:
-            env["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
+            environ["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
         #
         opt_args = []
         if requirements_path is not None:
@@ -970,8 +974,9 @@ class ModuleManager:
                 "-m", "pip", "freeze",
                 "--user",
                 "--disable-pip-version-check",
+                "--cache-dir", cache_dir,
             ] + opt_args,
-            env=env,
+            env=environ,
         ).decode()
 
 
