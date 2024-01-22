@@ -44,12 +44,12 @@ def register_traefik_route(context):
     #
     traefik_config = context.settings.get("traefik", dict())
     if not traefik_config:
-        log.error("Cannot register route: no traefik config")
+        log.info("Cannot register route: no traefik config")
         return
     #
     redis_config = traefik_config.get("redis", dict())
     if not redis_config:
-        log.error("Cannot register route: no redis config")
+        log.info("Cannot register route: no redis config")
         return
     #
     local_hostname = socket.gethostname()
@@ -139,12 +139,12 @@ def unregister_traefik_route(context):
     #
     traefik_config = context.settings.get("traefik", dict())
     if not traefik_config:
-        log.error("Cannot unregister route: no traefik config")
+        log.info("Cannot unregister route: no traefik config")
         return
     #
     redis_config = traefik_config.get("redis", dict())
     if not redis_config:
-        log.error("Cannot unregister route: no redis config")
+        log.info("Cannot unregister route: no redis config")
         return
     #
     log.info("Unregistering traefik route for node '%s'", context.node_name)
