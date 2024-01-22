@@ -33,6 +33,7 @@ class EventManager:
         #
         events_rabbitmq = self.context.settings.get("events", dict()).get("rabbitmq", dict())
         events_redis = self.context.settings.get("events", dict()).get("redis", dict())
+        events_socketio = self.context.settings.get("events", dict()).get("socketio", dict())
         #
         if events_rabbitmq:
             try:
@@ -80,6 +81,22 @@ class EventManager:
                     callback_workers=events_redis.get("callback_workers", 1),
                     mute_first_failed_connections=events_redis.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                     use_ssl=events_redis.get("use_ssl", False),
+                )
+                self.node.start()
+            except:  # pylint: disable=W0702
+                log.exception("Cannot make EventNode instance, using local events only")
+                self.node = arbiter.MockEventNode()
+        elif events_socketio:
+            try:
+                self.node = arbiter.SocketIOEventNode(
+                    url=events_socketio.get("url"),
+                    password=events_socketio.get("password", ""),
+                    room=events_socketio.get("room", "events"),
+                    hmac_key=events_socketio.get("hmac_key", None),
+                    hmac_digest=events_socketio.get("hmac_digest", "sha512"),
+                    callback_workers=events_socketio.get("callback_workers", 1),
+                    mute_first_failed_connections=events_socketio.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
+                    ssl_verify=events_socketio.get("ssl_verify", False),
                 )
                 self.node.start()
             except:  # pylint: disable=W0702

@@ -35,6 +35,7 @@ class RpcManager:
         rpc_config = self.context.settings.get("rpc", dict())
         rpc_rabbitmq = rpc_config.get("rabbitmq", dict())
         rpc_redis = rpc_config.get("redis", dict())
+        rpc_socketio = rpc_config.get("socketio", dict())
         #
         if rpc_rabbitmq:
             try:
@@ -82,6 +83,22 @@ class RpcManager:
                     callback_workers=rpc_redis.get("callback_workers", 1),
                     mute_first_failed_connections=rpc_redis.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                     use_ssl=rpc_redis.get("use_ssl", False),
+                )
+                event_node.start()
+            except:  # pylint: disable=W0702
+                log.exception("Cannot make EventNode instance, using local RPC only")
+                event_node = arbiter.MockEventNode()
+        elif rpc_socketio:
+            try:
+                event_node = arbiter.SocketIOEventNode(
+                    url=rpc_socketio.get("url"),
+                    password=rpc_socketio.get("password", ""),
+                    room=rpc_socketio.get("room", "events"),
+                    hmac_key=rpc_socketio.get("hmac_key", None),
+                    hmac_digest=rpc_socketio.get("hmac_digest", "sha512"),
+                    callback_workers=rpc_socketio.get("callback_workers", 1),
+                    mute_first_failed_connections=rpc_socketio.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
+                    ssl_verify=rpc_socketio.get("ssl_verify", False),
                 )
                 event_node.start()
             except:  # pylint: disable=W0702
