@@ -42,9 +42,31 @@ def add_url_prefix(context):
 
 def add_middlewares(context):
     """ Add needed middlewares """
+    health_config = context.settings.get("server", {}).get("health", {})
+    health_endpoints = {}
+    #
+    if health_config.get("healthz", False):
+        log.info("Adding healthz endpoint")
+        health_endpoints["/healthz"] = ok_app
+    #
+    if health_config.get("livez", False):
+        log.info("Adding livez endpoint")
+        health_endpoints["/livez"] = ok_app
+    #
+    if health_config.get("readyz", False):
+        log.info("Adding readyz endpoint")
+        health_endpoints["/readyz"] = ok_app
+    #
     if context.url_prefix:
         context.app.wsgi_app = DispatcherMiddleware(
-            noop_app, {context.url_prefix: context.app.wsgi_app},
+            noop_app, {
+                context.url_prefix: context.app.wsgi_app,
+                **health_endpoints
+            },
+        )
+    elif health_endpoints:
+        context.app.wsgi_app = DispatcherMiddleware(
+            context.app.wsgi_app, health_endpoints,
         )
     #
     proxy_settings = context.settings.get("server", dict()).get("proxy", False)
@@ -73,6 +95,17 @@ def noop_app(environ, start_response):
     ])
     #
     return [b"Not Found\n"]
+
+
+def ok_app(environ, start_response):
+    """ Dummy app that always returns 200 """
+    _ = environ
+    #
+    start_response("200 OK", [
+        ("Content-type", "text/plain")
+    ])
+    #
+    return [b"OK\n"]
 
 
 def create_socketio_instance(context):
