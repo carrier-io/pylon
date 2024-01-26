@@ -65,7 +65,7 @@ def add_middlewares(context):
     if health_filters and not health_config.get("log", False):
         log.info("Adding logging filter")
         health_filter = log.Filter(health_filters)
-        logging.root.addFilter(health_filter)
+        logging.getLogger("werkzeug").addFilter(health_filter)
     #
     if context.url_prefix:
         context.app.wsgi_app = DispatcherMiddleware(
