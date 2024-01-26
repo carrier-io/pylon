@@ -22,6 +22,7 @@
 
 import os
 import signal
+import logging
 
 import socketio  # pylint: disable=E0401
 
@@ -44,18 +45,27 @@ def add_middlewares(context):
     """ Add needed middlewares """
     health_config = context.settings.get("server", {}).get("health", {})
     health_endpoints = {}
+    health_filters = []
     #
     if health_config.get("healthz", False):
         log.info("Adding healthz endpoint")
         health_endpoints["/healthz"] = ok_app
+        health_filters.append("GET /healthz")
     #
     if health_config.get("livez", False):
         log.info("Adding livez endpoint")
         health_endpoints["/livez"] = ok_app
+        health_filters.append("GET /livez")
     #
     if health_config.get("readyz", False):
         log.info("Adding readyz endpoint")
         health_endpoints["/readyz"] = ok_app
+        health_filters.append("GET /readyz")
+    #
+    if health_filters and not health_config.get("log", False):
+        log.info("Adding logging filter")
+        health_filter = log.Filter(health_filters)
+        logging.root.addFilter(health_filter)
     #
     if context.url_prefix:
         context.app.wsgi_app = DispatcherMiddleware(

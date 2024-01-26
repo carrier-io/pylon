@@ -122,3 +122,25 @@ class DebugLogStream(io.RawIOBase):
     def write(self, b):
         for line in b.decode().splitlines():
             get_outer_logger().debug(line)
+
+
+class Filter(logging.Filter):  # pylint: disable=R0903
+    """ Logging filter """
+
+    def __init__(self, filters=None):
+        super().__init__()
+        #
+        self.filters = []
+        #
+        if filters:
+            self.filters.extend(filters)
+
+    def filter(self, record):
+        """ Filter record """
+        message = record.getMessage()
+        #
+        for item in self.filters:
+            if item in message:
+                return False
+        #
+        return True
