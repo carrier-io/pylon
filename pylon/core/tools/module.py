@@ -516,6 +516,23 @@ class ModuleDescriptor:  # pylint: disable=R0902
             url_prefix, static_url_prefix, use_template_prefix, register_in_app, module_routes
         )
 
+    def deinit_deinits(self, module_deinits=True):
+        """ Run all decorated deinits from this module """
+        # NB: Deinits are loaded by init_methods()
+        deinits = web.deinits_registry.pop(f"plugins.{self.name}", list())
+        for deinit in deinits:
+            if module_deinits:
+                deinit(self.module)
+            else:
+                deinit()
+
+    def deinit_all(  # pylint: disable=R0913
+            self,
+            module_deinits=True
+        ):
+        """ Shortcut to perform fast basic deinit of this module services """
+        self.deinit_deinits(module_deinits)
+
     def template_name(self, name, module=None):
         """ Make prefixed template name """
         if module is None:

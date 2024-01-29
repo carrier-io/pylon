@@ -29,6 +29,7 @@ sios_registry = dict()  # module -> [sio]  # pylint: disable=C0103
 events_registry = dict()  # module -> [event]  # pylint: disable=C0103
 methods_registry = dict()  # module -> [method]  # pylint: disable=C0103
 inits_registry = dict()  # module -> [init]  # pylint: disable=C0103
+deinits_registry = dict()  # module -> [deinit]  # pylint: disable=C0103
 
 
 def route(rule, **options):
@@ -139,6 +140,22 @@ def init():
         #
         init_item = obj
         inits_registry[module].append(init_item)
+        #
+        return obj
+    #
+    return _decorator
+
+def deinit():
+    """ (Pre-)Register deinit """
+    #
+    def _decorator(obj):
+        module = ".".join(obj.__module__.split(".")[:2])
+        #
+        if module not in deinits_registry:
+            deinits_registry[module] = list()
+        #
+        deinit_item = obj
+        deinits_registry[module].append(deinit_item)
         #
         return obj
     #
