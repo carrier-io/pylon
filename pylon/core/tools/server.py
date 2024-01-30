@@ -118,12 +118,13 @@ def ok_app(environ, start_response):
     return [b"OK\n"]
 
 
-def create_socketio_instance(context):
+def create_socketio_instance(context):  # pylint: disable=R0914
     """ Create SocketIO instance """
     client_manager = None
     #
     socketio_config = context.settings.get("socketio", dict())
     socketio_rabbitmq = socketio_config.get("rabbitmq", dict())
+    socketio_redis = socketio_config.get("redis", dict())
     #
     if socketio_rabbitmq:
         try:
@@ -140,6 +141,23 @@ def create_socketio_instance(context):
             )
         except:  # pylint: disable=W0702
             log.exception("Cannot make KombuManager instance, SocketIO is in standalone mode")
+    #
+    if socketio_redis:
+        try:
+            host = socketio_redis.get("host")
+            port = socketio_redis.get("port", 6379)
+            password = socketio_redis.get("password", "")
+            database = socketio_redis.get("database", 0)
+            queue = socketio_redis.get("queue", "socketio")
+            use_ssl = socketio_redis.get("use_ssl", False)
+            #
+            scheme = "rediss" if use_ssl else "redis"
+            url = f'{scheme}://:{password}@{host}:{port}/{database}'
+            client_manager = socketio.RedisManager(
+                url=url, channel=queue,
+            )
+        except:  # pylint: disable=W0702
+            log.exception("Cannot make RedisManager instance, SocketIO is in standalone mode")
     #
     if not context.debug and context.web_runtime == "gevent":
         sio = socketio.Server(
