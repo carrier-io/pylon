@@ -114,6 +114,7 @@ def expose():
     # Next: periodic announce to other pylons... and handle announces
     # And: request data + SIO, as it needs special handling
     # Later: streaming, caching and so on
+    # Health: liveness checks, RPC timeouts
 
 
 def unexpose():
@@ -227,7 +228,7 @@ def on_request(sub_path):
 
 def on_after_request(response):
     """ Exposure handler """
-    response.headers["Server"] = "Pylon"
+    response.headers["server"] = "Pylon"
     return response
 
 
