@@ -94,6 +94,9 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Generate pylon ID
     context.id = f'{context.node_name}_{str(uuid.uuid4())}'
     log.info("Pylon ID: %s", context.id)
+    # Allow to override runtime from config (if != gevent in env)
+    if context.web_runtime != "gevent" and "runtime" in context.settings.get("server", {}):
+        context.web_runtime = context.settings.get("server").get("runtime")
     # Prepare SSL custom cert bundle
     ssl.init(context)
     # Enable SysLog logging if requested in config
