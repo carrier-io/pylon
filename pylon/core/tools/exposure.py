@@ -41,6 +41,8 @@ def expose():
     context.exposure.rpc_node = None
     context.exposure.registry = {}
     #
+    context.app.after_request(on_after_request)
+    #
     # Config
     #
     config = context.exposure.config
@@ -221,6 +223,12 @@ def on_request(sub_path):
     )
     #
     return flask.make_response(view_rv)
+
+
+def on_after_request(response):
+    """ Exposure handler """
+    response.headers["Server"] = "Pylon"
+    return response
 
 
 def prepare_rpc_environ(wsgi_environ):
