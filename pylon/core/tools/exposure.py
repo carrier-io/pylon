@@ -209,6 +209,13 @@ def prepare_rpc_environ(wsgi_environ):
     return result
 
 
+def prepare_call_environ(wsgi_environ):
+    """ Prepare environ for local wsgi_call """
+    result = dict(wsgi_environ)
+    #
+    return result
+
+
 def ping():
     """ Check if this pylon is alive """
     return True
@@ -232,7 +239,9 @@ def wsgi_call(environ):
     data = None
     #
     try:
-        data = context.app.wsgi_app(environ, start_response)
+        data = context.app.wsgi_app(
+            prepare_call_environ(environ), start_response,
+        )
         for item in data:
             response["body"].write(item)
     except:  # pylint: disable=W0702
