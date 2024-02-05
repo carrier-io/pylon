@@ -228,7 +228,8 @@ def on_request(sub_path):
 
 def on_after_request(response):
     """ Exposure handler """
-    response.headers["server"] = "Pylon"
+    response.headers.pop("Server", None)
+    response.headers["Server"] = "Pylon"
     return response
 
 
