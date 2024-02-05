@@ -38,6 +38,7 @@ def expose():
     context.exposure = Context()
     context.exposure.id = f"pylon_{context.id}"
     context.exposure.config = context.settings.get("exposure", {})
+    context.exposure.debug = context.exposure.config.get("debug", False)
     context.exposure.event_node = None
     context.exposure.rpc_node = None
     context.exposure.registry = {}
@@ -203,16 +204,21 @@ def on_request(sub_path):
             exposure_id = reg_exposure_id
             break
     #
-    log.info("Target: %s", exposure_id)
+    if context.exposure.debug:
+        log.info("Target: %s", exposure_id)
     #
     if exposure_id is None:
         flask.abort(404)
     #
     wsgi_environ = flask.request.environ
-    log.info("WSGI env [input]: %s", wsgi_environ)
+    #
+    if context.exposure.debug:
+        log.info("WSGI env [input]: %s", wsgi_environ)
     #
     call_environ = prepare_rpc_environ(wsgi_environ)
-    log.info("WSGI env [prepared]: %s", call_environ)
+    #
+    if context.exposure.debug:
+        log.info("WSGI env [prepared]: %s", call_environ)
     #
     wsgi_result = context.exposure.rpc_node.call(
         f"{exposure_id}_wsgi_call", call_environ,
@@ -240,6 +246,8 @@ def prepare_rpc_environ(wsgi_environ):
         "waitress.client_disconnected",
     ]
     #
+    # Need to save request input and some other data
+    #
     for key in drop_keys:
         result.pop(key, None)
     #
@@ -249,6 +257,8 @@ def prepare_rpc_environ(wsgi_environ):
 def prepare_call_environ(wsgi_environ):
     """ Prepare environ for local wsgi_call """
     result = dict(wsgi_environ)
+    #
+    # Need to restore request input and some other data
     #
     return result
 
