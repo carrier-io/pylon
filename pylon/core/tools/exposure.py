@@ -21,6 +21,7 @@
 """
 
 import io
+import http.server
 
 import flask  # pylint: disable=E0401
 import arbiter  # pylint: disable=E0401
@@ -41,7 +42,7 @@ def expose():
     context.exposure.rpc_node = None
     context.exposure.registry = {}
     #
-    context.app.after_request(on_after_request)
+    http.server.version_string = lambda *args, **kwargs: "Pylon"
     #
     # Config
     #
@@ -224,13 +225,6 @@ def on_request(sub_path):
     )
     #
     return flask.make_response(view_rv)
-
-
-def on_after_request(response):
-    """ Exposure handler """
-    response.headers.pop("Server", None)
-    response.headers["Server"] = "Pylon"
-    return response
 
 
 def prepare_rpc_environ(wsgi_environ):
