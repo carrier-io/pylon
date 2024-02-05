@@ -236,6 +236,8 @@ def prepare_rpc_environ(wsgi_environ):
         "wsgi.errors",
         "werkzeug.socket",
         "werkzeug.request",
+        "wsgi.file_wrapper",
+        "waitress.client_disconnected",
     ]
     #
     for key in drop_keys:

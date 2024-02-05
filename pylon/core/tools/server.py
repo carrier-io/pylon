@@ -201,6 +201,7 @@ def run_server(context):
             context.app,
             host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
             port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+            ident="Pylon",
         )
     elif not context.debug:
         log.info("Starting Flask server")
