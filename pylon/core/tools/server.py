@@ -166,6 +166,13 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
+    elif context.web_runtime == "waitress":
+        sio = socketio.Server(
+            allow_upgrades=False,
+            async_mode="threading",
+            client_manager=client_manager,
+            cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+        )
     else:
         sio = socketio.Server(
             async_mode="threading",
@@ -203,6 +210,9 @@ def run_server(context):
             context.app,
             host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
             port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+            threads=context.settings.get("server", {}).get(
+                "threads", constants.SERVER_DEFAULT_THREADS
+            ),
             ident="Pylon",
         )
     elif not context.debug:
