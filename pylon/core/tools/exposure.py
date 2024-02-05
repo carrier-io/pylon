@@ -42,7 +42,7 @@ def expose():
     context.exposure.rpc_node = None
     context.exposure.registry = {}
     #
-    http.server.version_string = lambda *args, **kwargs: "Pylon"
+    http.server.BaseHTTPRequestHandler.version_string = lambda *args, **kwargs: "Pylon"
     #
     # Config
     #
