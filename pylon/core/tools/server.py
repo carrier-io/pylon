@@ -256,6 +256,7 @@ def run_server(context):
             threads=context.settings.get("server", {}).get(
                 "threads", constants.SERVER_DEFAULT_THREADS
             ),
+            clear_untrusted_proxy_headers=False,
             ident="Pylon",
         )
     elif not context.debug:
