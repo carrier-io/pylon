@@ -28,12 +28,11 @@ import arbiter  # pylint: disable=E0401
 from pylon.core.tools import log
 from pylon.core.tools.context import Context
 
-from tools import context  # pylint: disable=E0401,C0411
-
 
 def expose():
     """ Expose this pylon over pylon network """
     log.info("Exposing pylon")
+    from tools import context  # pylint: disable=E0401,C0411,C0415
     #
     context.exposure = Context()
     context.exposure.id = f"pylon_{context.id}"
@@ -96,6 +95,7 @@ def expose():
 def unexpose():
     """ Unexpose this pylon over pylon network """
     log.info("Unexposing pylon")
+    from tools import context  # pylint: disable=E0401,C0411,C0415
     #
     if context.exposure.event_node is None:
         return
@@ -133,6 +133,7 @@ def unexpose():
 def on_pylon_exposed(event_name, event_payload):
     """ Event callback """
     _ = event_name
+    from tools import context  # pylint: disable=E0401,C0411,C0415
     exposure_id = event_payload.get("exposure_id")
     #
     if exposure_id == context.exposure.id:
@@ -166,6 +167,7 @@ def make_view_func(exposure_id):
     def on_request(sub_path):
         """ Exposure handler """
         _ = sub_path
+        from tools import context  # pylint: disable=E0401,C0411,C0415
         #
         log.info("Target: %s", exposure_id)
         #
@@ -213,6 +215,8 @@ def ping():
 
 def wsgi_call(environ):
     """ Call this pylon WSGI app """
+    from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
     response = {
         "status": None,
         "headers": None,
