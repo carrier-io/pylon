@@ -194,6 +194,14 @@ def run_server(context):
             handler_class=WebSocketHandler,
         )
         http_server.serve_forever()
+    elif not context.debug and context.web_runtime == "waitress":
+        log.info("Starting Waitress server")
+        import waitress  # pylint: disable=E0401,C0412,C0415
+        waitress.serve(
+            context.app,
+            host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
+            port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+        )
     elif not context.debug:
         log.info("Starting Flask server")
         context.app.run(
