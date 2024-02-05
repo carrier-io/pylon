@@ -23,6 +23,8 @@
 import os
 import signal
 import logging
+import datetime
+import urllib.parse
 
 import socketio  # pylint: disable=E0401
 
@@ -66,6 +68,7 @@ def add_middlewares(context):
         log.info("Adding logging filter")
         health_filter = log.Filter(health_filters)
         logging.getLogger("werkzeug").addFilter(health_filter)
+        logging.getLogger("waitress").addFilter(health_filter)
         logging.getLogger("geventwebsocket.handler").addFilter(health_filter)
     #
     if context.url_prefix:
@@ -79,6 +82,9 @@ def add_middlewares(context):
         context.app.wsgi_app = DispatcherMiddleware(
             context.app.wsgi_app, health_endpoints,
         )
+    #
+    if context.web_runtime == "waitress":
+        context.app.wsgi_app = LoggingMiddleware(context.app.wsgi_app)
     #
     proxy_settings = context.settings.get("server", dict()).get("proxy", False)
     #
@@ -117,6 +123,44 @@ def ok_app(environ, start_response):
     ])
     #
     return [b"OK\n"]
+
+
+class LoggingMiddleware:  # pylint: disable=R0903
+    """ Log requests """
+
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        #
+        def log_and_start_response(status, headers, *args, **kwargs):
+            request_uri = urllib.parse.quote(
+                f'{environ.get("SCRIPT_NAME", "")}{environ.get("PATH_INFO", "")}'
+            )
+            if "QUERY_STRING" in environ:
+                request_uri = f'{request_uri}?{environ["QUERY_STRING"]}'
+            #
+            response_size = "-"
+            for key, value in headers:
+                if key.lower() == "content-length":
+                    response_size = str(value)
+                    break
+            #
+            logger = logging.getLogger("waitress")
+            logger.info(
+                '%s - - [%s] "%s %s %s" %s %s',
+                environ.get("REMOTE_ADDR", "-"),
+                datetime.datetime.now().strftime("%d/%b/%Y %H:%M:%S"),
+                environ.get("REQUEST_METHOD", "-"),
+                request_uri,
+                environ.get("SERVER_PROTOCOL", "-"),
+                status.split(None, 1)[0],
+                response_size,
+            )
+            #
+            return start_response(status, headers, *args, **kwargs)
+        #
+        return self.app(environ, log_and_start_response)
 
 
 def create_socketio_instance(context):  # pylint: disable=R0914
