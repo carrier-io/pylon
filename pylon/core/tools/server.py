@@ -172,6 +172,8 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     #
+    # TODO: patch sio to lock emits (and also allow to use catch-all handler for exposure)
+    #
     context.app.wsgi_app = socketio.WSGIApp(sio, context.app.wsgi_app)
     #
     return sio

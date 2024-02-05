@@ -41,6 +41,7 @@ if not CORE_DEVELOPMENT_MODE and CORE_WEB_RUNTIME == "gevent":
 #
 
 import os
+import uuid
 import socket
 import signal
 
@@ -60,6 +61,7 @@ from pylon.core.tools import slot
 from pylon.core.tools import server
 from pylon.core.tools import session
 from pylon.core.tools import traefik
+from pylon.core.tools import exposure
 
 from pylon.core.tools.signal import signal_sigterm
 from pylon.core.tools.context import Context
@@ -89,6 +91,9 @@ def main():  # pylint: disable=R0912,R0914,R0915
         os.environ[key] = value
     # Save global node name
     context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
+    # Generate pylon ID
+    context.id = f'{context.node_name}_{str(uuid.uuid4())}'
+    log.info("Pylon ID: %s", context.id)
     # Prepare SSL custom cert bundle
     ssl.init(context)
     # Enable SysLog logging if requested in config
@@ -131,11 +136,15 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.module_manager.init_modules()
     # Register Traefik route via Redis KV
     traefik.register_traefik_route(context)
+    # Expose pylon
+    exposure.expose()
     # Run WSGI server
     try:
         server.run_server(context)
     finally:
         log.info("WSGI server stopped")
+        # Unexpose pylon
+        exposure.unexpose()
         # Unregister traefik route
         traefik.unregister_traefik_route(context)
         # De-init modules
