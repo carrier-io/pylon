@@ -39,6 +39,7 @@ def expose():
     context.exposure.config = context.settings.get("exposure", {})
     context.exposure.event_node = None
     context.exposure.rpc_node = None
+    context.exposure.registry = {}
     #
     # Config
     #
@@ -53,7 +54,9 @@ def expose():
     )
     context.exposure.event_node.start()
     #
-    if config.get("handle", False):
+    handle_config = config.get("handle", {})
+    #
+    if handle_config.get("enabled", False):
         context.exposure.event_node.subscribe(
             "pylon_exposed", on_pylon_exposed
         )
@@ -61,6 +64,25 @@ def expose():
         context.exposure.event_node.subscribe(
             "pylon_unexposed", on_pylon_unexposed
         )
+        #
+        for idx, url_prefix in enumerate(handle_config.get("prefixes", [])):
+            while url_prefix.endswith("/"):
+                url_prefix = url_prefix[:-1]
+            #
+            base_url = f'{url_prefix}/'
+            #
+            context.app.add_url_rule(
+                base_url,
+                endpoint=f"pylon_exposure_{context.id}_{idx}",
+                view_func=on_request,
+                defaults={"sub_path": ""},
+            )
+            #
+            context.app.add_url_rule(
+                f'{base_url}/<path:sub_path>',
+                endpoint=f"pylon_exposure_{context.id}_{idx}_sub_path",
+                view_func=on_request,
+            )
     #
     # RpcNode
     #
@@ -88,7 +110,7 @@ def expose():
         )
     #
     # Next: periodic announce to other pylons... and handle announces
-    # And: SIO, as it needs special handling
+    # And: request data + SIO, as it needs special handling
     # Later: streaming, caching and so on
 
 
@@ -134,62 +156,71 @@ def on_pylon_exposed(event_name, event_payload):
     """ Event callback """
     _ = event_name
     from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
     exposure_id = event_payload.get("exposure_id")
+    url_prefix = event_payload.get("url_prefix")
     #
     if exposure_id == context.exposure.id:
         return
     #
-    base_url = f'{event_payload.get("url_prefix")}/'
-    view_func = make_view_func(exposure_id)
-    #
-    context.app.add_url_rule(
-        base_url,
-        endpoint=f"pylon_exposure_{exposure_id}",
-        view_func=view_func,
-        defaults={"sub_path": ""},
-    )
-    #
-    context.app.add_url_rule(
-        f'{base_url}/<path:sub_path>',
-        endpoint=f"pylon_exposure_{exposure_id}_sub_path",
-        view_func=view_func,
-    )
+    context.exposure.registry[url_prefix] = exposure_id
 
 
 def on_pylon_unexposed(event_name, event_payload):
     """ Event callback """
-    _ = event_name, event_payload
+    _ = event_name
+    from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
+    exposure_id = event_payload.get("exposure_id")
+    drop_url_prefixes = []
+    #
+    for reg_prefix, reg_id in context.exposure.registry.items():
+        if reg_id == exposure_id:
+            drop_url_prefixes.append(reg_prefix)
+    #
+    while drop_url_prefixes:
+        url_prefix = drop_url_prefixes.pop()
+        context.exposure.registry.pop(url_prefix, None)
 
 
-def make_view_func(exposure_id):
-    """ Make exposure handler """
+def on_request(sub_path):
+    """ Exposure handler """
+    _ = sub_path
+    from tools import context  # pylint: disable=E0401,C0411,C0415
     #
-    def on_request(sub_path):
-        """ Exposure handler """
-        _ = sub_path
-        from tools import context  # pylint: disable=E0401,C0411,C0415
-        #
-        log.info("Target: %s", exposure_id)
-        #
-        wsgi_environ = flask.request.environ
-        log.info("WSGI env [input]: %s", wsgi_environ)
-        #
-        call_environ = prepare_rpc_environ(wsgi_environ)
-        log.info("WSGI env [prepared]: %s", call_environ)
-        #
-        wsgi_result = context.exposure.rpc_node.call(
-            f"{exposure_id}_wsgi_call", call_environ,
-        )
-        #
-        view_rv = (
-            wsgi_result["body"],
-            wsgi_result["status"],
-            wsgi_result["headers"],
-        )
-        #
-        return flask.make_response(view_rv)
+    source_uri = flask.request.full_path
+    if not flask.request.query_string and source_uri.endswith("?"):
+        source_uri = source_uri[:-1]
     #
-    return on_request
+    exposure_id = None
+    #
+    for reg_url_prefix, reg_exposure_id in context.exposure.registry.items():
+        if source_uri.startswith(reg_url_prefix):
+            exposure_id = reg_exposure_id
+            break
+    #
+    log.info("Target: %s", exposure_id)
+    #
+    if exposure_id is None:
+        flask.abort(404)
+    #
+    wsgi_environ = flask.request.environ
+    log.info("WSGI env [input]: %s", wsgi_environ)
+    #
+    call_environ = prepare_rpc_environ(wsgi_environ)
+    log.info("WSGI env [prepared]: %s", call_environ)
+    #
+    wsgi_result = context.exposure.rpc_node.call(
+        f"{exposure_id}_wsgi_call", call_environ,
+    )
+    #
+    view_rv = (
+        wsgi_result["body"],
+        wsgi_result["status"],
+        wsgi_result["headers"],
+    )
+    #
+    return flask.make_response(view_rv)
 
 
 def prepare_rpc_environ(wsgi_environ):
