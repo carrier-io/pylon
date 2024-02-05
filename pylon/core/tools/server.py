@@ -66,6 +66,7 @@ def add_middlewares(context):
         log.info("Adding logging filter")
         health_filter = log.Filter(health_filters)
         logging.getLogger("werkzeug").addFilter(health_filter)
+        logging.getLogger("geventwebsocket.handler").addFilter(health_filter)
     #
     if context.url_prefix:
         context.app.wsgi_app = DispatcherMiddleware(
@@ -197,6 +198,7 @@ def run_server(context):
     elif not context.debug and context.web_runtime == "waitress":
         log.info("Starting Waitress server")
         import waitress  # pylint: disable=E0401,C0412,C0415
+        # Need to add logging middleware in some time in the future
         waitress.serve(
             context.app,
             host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
