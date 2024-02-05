@@ -31,7 +31,7 @@ CORE_WEB_RUNTIME = env.get_var("WEB_RUNTIME", "flask")
 
 if not CORE_DEVELOPMENT_MODE and CORE_WEB_RUNTIME == "gevent":
     import gevent.monkey  # pylint: disable=E0401
-    gevent.monkey.patch_all(thread=False, subprocess=False)
+    gevent.monkey.patch_all()
     #
     import psycogreen.gevent  # pylint: disable=E0401
     psycogreen.gevent.patch_psycopg()
