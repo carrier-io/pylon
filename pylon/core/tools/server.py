@@ -95,9 +95,6 @@ def add_middlewares(context):
         context.app.wsgi_app = ProxyFix(
             context.app.wsgi_app, x_for=1, x_proto=1,
         )
-    #
-    if context.web_runtime == "waitress":
-        context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
 
 
 def noop_app(environ, start_response):
@@ -120,26 +117,6 @@ def ok_app(environ, start_response):
     ])
     #
     return [b"OK\n"]
-
-
-class WaitressSocket:  # pylint: disable=R0903
-    """ Get socket from waitress channel """
-
-    def __init__(self, app):
-        self.app = app
-
-    def __call__(self, environ, start_response):
-        sock = None
-        #
-        if "waitress.client_disconnected" in environ:
-            channel = environ["waitress.client_disconnected"].__self__
-            if hasattr(channel, "socket"):
-                sock = channel.socket
-        #
-        if sock is not None:
-            environ["werkzeug.socket"] = sock
-        #
-        return self.app(environ, start_response)
 
 
 def create_socketio_instance(context):  # pylint: disable=R0914
@@ -191,6 +168,7 @@ def create_socketio_instance(context):  # pylint: disable=R0914
         )
     elif context.web_runtime == "waitress":
         sio = socketio.Server(
+            allow_upgrades=False,
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
