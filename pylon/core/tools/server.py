@@ -135,10 +135,6 @@ class WaitressSocket:  # pylint: disable=R0903
             channel = environ["waitress.client_disconnected"].__self__
             if hasattr(channel, "socket"):
                 sock = channel.socket
-                try:
-                    sock = sock.dup()
-                except NotImplementedError:
-                    pass
         #
         if sock is not None:
             environ["werkzeug.socket"] = sock
