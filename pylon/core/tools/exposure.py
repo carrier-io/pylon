@@ -200,6 +200,7 @@ def prepare_rpc_environ(wsgi_environ):
         "wsgi.input",
         "wsgi.errors",
         "werkzeug.socket",
+        "werkzeug.request",
     ]
     #
     for key in drop_keys:
