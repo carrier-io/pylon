@@ -137,7 +137,7 @@ class LoggingMiddleware:  # pylint: disable=R0903
             request_uri = urllib.parse.quote(
                 f'{environ.get("SCRIPT_NAME", "")}{environ.get("PATH_INFO", "")}'
             )
-            if "QUERY_STRING" in environ:
+            if "QUERY_STRING" in environ and environ["QUERY_STRING"]:
                 request_uri = f'{request_uri}?{environ["QUERY_STRING"]}'
             #
             response_size = "-"
