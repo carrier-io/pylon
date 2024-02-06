@@ -125,7 +125,7 @@ def add_middlewares(context):
     #
     if context.web_runtime == "uvicorn":
         import asgiref  # pylint: disable=E0401,C0412,C0415
-        context.app.wsgi_app = asgirefWsgiToAsgi(context.app.wsgi_app)
+        context.app.wsgi_app = asgiref.WsgiToAsgi(context.app.wsgi_app)
         #
         context.app.wsgi_app = socketio.ASGIApp(
             context.sio, context.app.wsgi_app,
