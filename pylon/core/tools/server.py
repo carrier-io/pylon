@@ -24,6 +24,7 @@ import os
 import signal
 import logging
 import datetime
+import threading
 import urllib.parse
 
 import socketio  # pylint: disable=E0401
@@ -38,7 +39,7 @@ from pylon.core.tools import env
 
 def add_url_prefix(context):
     """ Add global URL prefix to context """
-    context.url_prefix = context.settings.get("server", dict()).get("path", "/")
+    context.url_prefix = context.settings.get("server", {}).get("path", "/")
     while context.url_prefix.endswith("/"):
         context.url_prefix = context.url_prefix[:-1]
 
@@ -104,7 +105,7 @@ def add_middlewares(context):
     #
     # Proxy
     #
-    proxy_settings = context.settings.get("server", dict()).get("proxy", False)
+    proxy_settings = context.settings.get("server", {}).get("proxy", False)
     #
     if isinstance(proxy_settings, dict):
         context.app.wsgi_app = ProxyFix(
@@ -223,9 +224,9 @@ def create_socketio_instance(context):  # pylint: disable=R0914
     """ Create SocketIO instance """
     client_manager = None
     #
-    socketio_config = context.settings.get("socketio", dict())
-    socketio_rabbitmq = socketio_config.get("rabbitmq", dict())
-    socketio_redis = socketio_config.get("redis", dict())
+    socketio_config = context.settings.get("socketio", {})
+    socketio_rabbitmq = socketio_config.get("rabbitmq", {})
+    socketio_redis = socketio_config.get("redis", {})
     #
     if socketio_rabbitmq:
         try:
@@ -261,42 +262,67 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             log.exception("Cannot make RedisManager instance, SocketIO is in standalone mode")
     #
     if not context.debug and context.web_runtime == "gevent":
-        sio = socketio.Server(
+        sio = SIOPatchedServer(
             async_mode="gevent",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     elif context.web_runtime == "uvicorn":
-        sio = socketio.Server(
+        # Note: not working, hangs event loop
+        sio = SIOPatchedServer(
             allow_upgrades=False,
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     elif context.web_runtime == "hypercorn":
-        sio = socketio.Server(
+        # Note: not working, hangs event loop
+        sio = SIOPatchedServer(
             allow_upgrades=False,
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     elif context.web_runtime == "waitress":
-        sio = socketio.Server(
+        sio = SIOPatchedServer(
             allow_upgrades=True,
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     else:
-        sio = socketio.Server(
+        sio = SIOPatchedServer(
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     #
-    # TODO: patch sio to lock emits (and also allow to use catch-all handler for exposure)
-    #
     return sio
+
+
+class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
+    """ SockerIO Server patched for Pylon """
+
+    def __init__(self, *args, **kwargs):
+        self.pylon_emit_lock = threading.Lock()
+        self.pylon_any_handlers = []
+        #
+        super().__init__(*args, **kwargs)
+
+    def emit(self, *args, **kwargs):
+        """ Lock and emit() """
+        with self.pylon_emit_lock:
+            return super().emit(*args, **kwargs)
+
+    def _trigger_event(self, event, namespace, *args):
+        """ Call *any* handlers first """
+        for any_handler in self.pylon_any_handlers:
+            try:
+                any_handler(event, namespace, args)
+            except:  # pylint: disable=W0702
+                log.exception("Failed to run SIO *any* handler, skipping")
+        #
+        return super()._trigger_event(event, namespace, *args)
 
 
 def run_server(context):
@@ -307,8 +333,8 @@ def run_server(context):
         from geventwebsocket.handler import WebSocketHandler  # pylint: disable=E0401,C0412,C0415
         http_server = WSGIServer(
             (
-                context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
-                context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT)
+                context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
+                context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT)
             ),
             context.app,
             handler_class=WebSocketHandler,
@@ -353,8 +379,8 @@ def run_server(context):
         import waitress  # pylint: disable=E0401,C0412,C0415
         waitress.serve(
             context.app,
-            host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
-            port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+            host=context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
+            port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
             threads=context.settings.get("server", {}).get(
                 "threads", constants.SERVER_DEFAULT_THREADS
             ),
@@ -364,24 +390,24 @@ def run_server(context):
     elif not context.debug:
         log.info("Starting Flask server")
         context.app.run(
-            host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
-            port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+            host=context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
+            port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
             debug=False,
             use_reloader=False,
         )
     else:
         log.info("Starting Flask server in debug mode")
         context.app.run(
-            host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
-            port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+            host=context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
+            port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
             debug=True,
-            use_reloader=context.settings.get("server", dict()).get(
+            use_reloader=context.settings.get("server", {}).get(
                 "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
             ),
-            reloader_type=context.settings.get("server", dict()).get(
+            reloader_type=context.settings.get("server", {}).get(
                 "reloader_type", env.get_var("RELOADER_TYPE", "auto"),
             ),
-            reloader_interval=context.settings.get("server", dict()).get(
+            reloader_interval=context.settings.get("server", {}).get(
                 "reloader_interval", int(env.get_var("RELOADER_INTERVAL", "1")),
             ),
         )

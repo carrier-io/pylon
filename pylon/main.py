@@ -87,10 +87,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
         os._exit(1)  # pylint: disable=W0212
     # Set environment overrides (e.g. to add env var with data from vault)
     log.info("Setting environment overrides")
-    for key, value in context.settings.get("environment", dict()).items():
+    for key, value in context.settings.get("environment", {}).items():
         os.environ[key] = value
     # Save global node name
-    context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
+    context.node_name = context.settings.get("server", {}).get("name", socket.gethostname())
     # Generate pylon ID
     context.id = f'{context.node_name}_{str(uuid.uuid4())}'
     log.info("Pylon ID: %s", context.id)
@@ -124,7 +124,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     server.add_middlewares(context)
     # Set application settings
     context.app.config["CONTEXT"] = context
-    context.app.config.from_mapping(context.settings.get("application", dict()))
+    context.app.config.from_mapping(context.settings.get("application", {}))
     # Enable server-side sessions
     session.init_flask_sessions(context)
     # Make RpcManager instance
