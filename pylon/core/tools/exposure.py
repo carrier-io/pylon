@@ -87,6 +87,8 @@ def expose():
                 endpoint=f"pylon_exposure_{context.id}_{idx}_sub_path",
                 view_func=on_request,
             )
+        #
+        context.sio.pylon_any_handlers.append(on_sio)
     #
     # RpcNode
     #
@@ -231,6 +233,14 @@ def on_request(sub_path):
     )
     #
     return flask.make_response(view_rv)
+
+
+def on_sio(event, namespace, args):
+    """ SIO exposure handler """
+    from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
+    if context.exposure.debug:
+        log.info("SIO: %s, %s, %s", event, namespace, args)
 
 
 def prepare_rpc_environ(wsgi_environ):
