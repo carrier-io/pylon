@@ -120,6 +120,16 @@ def add_middlewares(context):
         context.app.wsgi_app = ProxyFix(
             context.app.wsgi_app, x_for=1, x_proto=1,
         )
+    #
+    # ASGI
+    #
+    if context.web_runtime == "uvicorn":
+        import asgiref  # pylint: disable=E0401,C0412,C0415
+        context.app.wsgi_app = asgirefWsgiToAsgi(context.app.wsgi_app)
+        #
+        context.app.wsgi_app = socketio.ASGIApp(
+            context.sio, context.app.wsgi_app,
+        )
 
 
 def noop_app(environ, start_response):
@@ -267,6 +277,11 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
+    elif context.web_runtime == "uvicorn":
+        sio = socketio.AsyncServer(
+            client_manager=client_manager,
+            cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+        )
     elif context.web_runtime == "hypercorn":
         sio = socketio.Server(
             allow_upgrades=False,
@@ -308,6 +323,15 @@ def run_server(context):
             handler_class=WebSocketHandler,
         )
         http_server.serve_forever()
+    elif not context.debug and context.web_runtime == "uvicorn":
+        log.info("Starting Uvicorn server")
+        import uvicorn  # pylint: disable=E0401,C0412,C0415
+        #
+        uvicorn.run(
+            context.app.wsgi_app,
+            host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
+            port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+        )
     elif not context.debug and context.web_runtime == "hypercorn":
         log.info("Starting Hypercorn server")
         import asyncio  # pylint: disable=E0401,C0412,C0415
