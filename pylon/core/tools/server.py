@@ -388,6 +388,9 @@ def run_server(context):
             threads=context.settings.get("server", {}).get(
                 "threads", constants.SERVER_DEFAULT_THREADS
             ),
+            connection_limit=context.settings.get("server", {}).get(
+                "connections", constants.SERVER_DEFAULT_CONNECTIONS
+            ),
             clear_untrusted_proxy_headers=False,
             ident="Pylon",
         )
