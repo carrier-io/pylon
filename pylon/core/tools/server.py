@@ -45,6 +45,19 @@ def add_url_prefix(context):
 
 def add_middlewares(context):
     """ Add needed middlewares """
+    #
+    # SIO in WSGI mode
+    #
+    if context.web_runtime != "uvicorn":
+        context.app.wsgi_app = socketio.WSGIApp(
+            context.sio, context.app.wsgi_app,
+        )
+        #
+        if context.web_runtime == "waitress":
+            context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
+    #
+    # Health
+    #
     health_config = context.settings.get("server", {}).get("health", {})
     health_endpoints = {}
     health_filters = []
@@ -71,6 +84,8 @@ def add_middlewares(context):
         logging.getLogger("werkzeug").addFilter(health_filter)
         logging.getLogger("geventwebsocket.handler").addFilter(health_filter)
     #
+    # Dispatcher
+    #
     if context.url_prefix:
         context.app.wsgi_app = DispatcherMiddleware(
             noop_app, {
@@ -83,8 +98,12 @@ def add_middlewares(context):
             context.app.wsgi_app, health_endpoints,
         )
     #
+    # Logging
+    #
     if context.web_runtime in ["waitress", "hypercorn"]:
         context.app.wsgi_app = LoggingMiddleware(context.app.wsgi_app)
+    #
+    # Proxy
     #
     proxy_settings = context.settings.get("server", dict()).get("proxy", False)
     #
@@ -100,24 +119,6 @@ def add_middlewares(context):
     elif proxy_settings:
         context.app.wsgi_app = ProxyFix(
             context.app.wsgi_app, x_for=1, x_proto=1,
-        )
-    #
-    if context.web_runtime != "hypercorn":
-        context.app.wsgi_app = socketio.WSGIApp(
-            context.sio, context.app.wsgi_app,
-        )
-        #
-        if context.web_runtime == "waitress":
-            context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
-    else:
-        import hypercorn.middleware  # pylint: disable=E0401,C0412,C0415
-        #
-        context.app.wsgi_app = hypercorn.middleware.AsyncioWSGIMiddleware(
-            context.app.wsgi_app,
-        )
-        #
-        context.app.wsgi_app = socketio.ASGIApp(
-            context.sio, context.app.wsgi_app,
         )
 
 
@@ -267,8 +268,9 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     elif context.web_runtime == "hypercorn":
-        sio = socketio.AsyncServer(
-            async_mode="asgi",
+        sio = socketio.Server(
+            allow_upgrades=False,
+            async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
@@ -319,9 +321,12 @@ def run_server(context):
         config = hypercorn.config.Config()
         config.bind = [f"{host}:{port}"]
         #
+        app = hypercorn.middleware.AsyncioWSGIMiddleware(
+            context.app,
+        )
         asyncio.run(
             hypercorn.asyncio.serve(
-                context.app.wsgi_app,
+                app,
                 config,
             ),
         )
