@@ -67,8 +67,8 @@ def add_middlewares(context):
     if health_filters and not health_config.get("log", False):
         log.info("Adding logging filter")
         health_filter = log.Filter(health_filters)
+        logging.getLogger("server").addFilter(health_filter)
         logging.getLogger("werkzeug").addFilter(health_filter)
-        logging.getLogger("waitress").addFilter(health_filter)
         logging.getLogger("geventwebsocket.handler").addFilter(health_filter)
     #
     if context.url_prefix:
@@ -83,7 +83,7 @@ def add_middlewares(context):
             context.app.wsgi_app, health_endpoints,
         )
     #
-    if context.web_runtime == "waitress":
+    if context.web_runtime in ["waitress", "hypercorn"]:
         context.app.wsgi_app = LoggingMiddleware(context.app.wsgi_app)
     #
     proxy_settings = context.settings.get("server", dict()).get("proxy", False)
@@ -149,7 +149,7 @@ class LoggingMiddleware:  # pylint: disable=R0903
                     response_size = str(value)
                     break
             #
-            logger = logging.getLogger("waitress")
+            logger = logging.getLogger("server")
             logger.info(
                 '%s - - [%s] "%s %s %s" %s %s',
                 environ.get("REMOTE_ADDR", "-"),
