@@ -319,13 +319,9 @@ def run_server(context):
         config = hypercorn.config.Config()
         config.bind = [f"{host}:{port}"]
         #
-        app = hypercorn.middleware.AsyncioWSGIMiddleware(
-            context.app,
-        )
-        #
         asyncio.run(
             hypercorn.asyncio.serve(
-                app,
+                context.app.wsgi_app,
                 config,
             ),
         )
