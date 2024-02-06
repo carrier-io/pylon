@@ -107,6 +107,10 @@ def expose():
             wsgi_call, name=f"{context.exposure.id}_wsgi_call"
         )
         #
+        context.exposure.rpc_node.register(
+            sio_call, name=f"{context.exposure.id}_sio_call"
+        )
+        #
         context.exposure.event_node.emit(
             "pylon_exposed",
             {
@@ -135,6 +139,10 @@ def unexpose():
             {
                 "exposure_id": context.exposure.id,
             },
+        )
+        #
+        context.exposure.rpc_node.unregister(
+            sio_call, name=f"{context.exposure.id}_sio_call"
         )
         #
         context.exposure.rpc_node.unregister(
@@ -241,6 +249,18 @@ def on_sio(event, namespace, args):
     #
     if context.exposure.debug:
         log.info("SIO: %s, %s, %s", event, namespace, args)
+    #
+    if event == "connect":
+        rpc_environ = prepare_rpc_environ(args[1])
+        #
+        args = list(args)
+        args[1] = rpc_environ
+        args = tuple(args)
+    #
+    for reg_id in context.exposure.registry.values():
+        context.exposure.rpc_node.call(
+            f"{reg_id}_sio_call", event, namespace, args,
+        )
 
 
 def prepare_rpc_environ(wsgi_environ):
@@ -313,3 +333,10 @@ def wsgi_call(environ):
     #
     response["body"] = response["body"].getvalue()
     return response
+
+
+def sio_call(event, namespace, args):
+    """ Invoke this SIO handlers """
+    from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
+    context.sio.pylon_trigger_event(event, namespace, *args)

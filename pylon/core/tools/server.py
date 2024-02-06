@@ -324,6 +324,10 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
         #
         return super()._trigger_event(event, namespace, *args)
 
+    def pylon_trigger_event(self, event, namespace, *args):
+        """ Call original handlers """
+        return super()._trigger_event(event, namespace, *args)
+
 
 def run_server(context):
     """ Run WSGI or Flask server """
