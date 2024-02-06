@@ -101,6 +101,9 @@ def add_middlewares(context):
         context.app.wsgi_app = ProxyFix(
             context.app.wsgi_app, x_for=1, x_proto=1,
         )
+    #
+    if context.web_runtime == "waitress":
+        context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
 
 
 def noop_app(environ, start_response):
@@ -163,6 +166,44 @@ class LoggingMiddleware:  # pylint: disable=R0903
         return self.app(environ, log_and_start_response)
 
 
+class WaitressSocket:  # pylint: disable=R0903
+    """ Get socket from waitress channel """
+
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, environ, start_response):
+        channel = None
+        #
+        if "waitress.client_disconnected" in environ:
+            channel = environ["waitress.client_disconnected"].__self__
+        #
+        if channel is not None:
+            environ["werkzeug.socket"] = WaitressSocketWrapper(channel)
+        #
+        return self.app(environ, start_response)
+
+
+class WaitressSocketWrapper:  # pylint: disable=R0903
+    """ Get socket from waitress channel: wrapper """
+
+    def __init__(self, channel):
+        self.channel = channel
+        self.socket = None
+
+    def __getattr__(self, name):
+        if self.socket is None:
+            self.socket = self.channel.socket
+            #
+            self.channel.socket = None
+            self.channel.del_channel()
+            self.channel.cancel()
+            #
+            self.socket.setblocking(1)
+        #
+        return getattr(self.socket, name)
+
+
 def create_socketio_instance(context):  # pylint: disable=R0914
     """ Create SocketIO instance """
     client_manager = None
@@ -212,7 +253,6 @@ def create_socketio_instance(context):  # pylint: disable=R0914
         )
     elif context.web_runtime == "waitress":
         sio = socketio.Server(
-            allow_upgrades=False,
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
