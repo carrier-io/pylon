@@ -279,6 +279,7 @@ def create_socketio_instance(context):  # pylint: disable=R0914
         )
     elif context.web_runtime == "uvicorn":
         sio = socketio.AsyncServer(
+            async_mode="asgi",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
