@@ -46,15 +46,14 @@ def add_url_prefix(context):
 def add_middlewares(context):
     """ Add needed middlewares """
     #
-    # SIO in WSGI mode
+    # SIO
     #
-    if context.web_runtime != "uvicorn":
-        context.app.wsgi_app = socketio.WSGIApp(
-            context.sio, context.app.wsgi_app,
-        )
-        #
-        if context.web_runtime == "waitress":
-            context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
+    context.app.wsgi_app = socketio.WSGIApp(
+        context.sio, context.app.wsgi_app,
+    )
+    #
+    if context.web_runtime == "waitress":
+        context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
     #
     # Health
     #
@@ -100,7 +99,7 @@ def add_middlewares(context):
     #
     # Logging
     #
-    if context.web_runtime in ["waitress", "hypercorn"]:
+    if context.web_runtime in ["waitress", "hypercorn", "uvicorn"]:
         context.app.wsgi_app = LoggingMiddleware(context.app.wsgi_app)
     #
     # Proxy
@@ -119,16 +118,6 @@ def add_middlewares(context):
     elif proxy_settings:
         context.app.wsgi_app = ProxyFix(
             context.app.wsgi_app, x_for=1, x_proto=1,
-        )
-    #
-    # ASGI
-    #
-    if context.web_runtime == "uvicorn":
-        import asgiref.wsgi  # pylint: disable=E0401,C0412,C0415
-        context.app.wsgi_app = asgiref.wsgi.WsgiToAsgi(context.app.wsgi_app)
-        #
-        context.app.wsgi_app = socketio.ASGIApp(
-            context.sio, context.app.wsgi_app,
         )
 
 
@@ -278,8 +267,9 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     elif context.web_runtime == "uvicorn":
-        sio = socketio.AsyncServer(
-            async_mode="asgi",
+        sio = socketio.Server(
+            allow_upgrades=False,
+            async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
@@ -326,12 +316,15 @@ def run_server(context):
         http_server.serve_forever()
     elif not context.debug and context.web_runtime == "uvicorn":
         log.info("Starting Uvicorn server")
+        import asgiref.wsgi  # pylint: disable=E0401,C0412,C0415
         import uvicorn  # pylint: disable=E0401,C0412,C0415
         #
+        app = asgiref.wsgi.WsgiToAsgi(context.app)
+        #
         uvicorn.run(
-            context.app.wsgi_app,
-            host=context.settings.get("server", dict()).get("host", constants.SERVER_DEFAULT_HOST),
-            port=context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT),
+            app,
+            host=context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
+            port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
         )
     elif not context.debug and context.web_runtime == "hypercorn":
         log.info("Starting Hypercorn server")
