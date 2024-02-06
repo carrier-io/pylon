@@ -102,8 +102,23 @@ def add_middlewares(context):
             context.app.wsgi_app, x_for=1, x_proto=1,
         )
     #
-    if context.web_runtime == "waitress":
-        context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
+    if context.web_runtime != "hypercorn":
+        context.app.wsgi_app = socketio.WSGIApp(
+            context.sio, context.app.wsgi_app,
+        )
+        #
+        if context.web_runtime == "waitress":
+            context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
+    else:
+        import hypercorn.middleware  # pylint: disable=E0401,C0412,C0415
+        #
+        context.app.wsgi_app = hypercorn.middleware.AsyncioWSGIMiddleware(
+            context.app.wsgi_app,
+        )
+        #
+        context.app.wsgi_app = socketio.ASGIApp(
+            context.sio, context.app.wsgi_app,
+        )
 
 
 def noop_app(environ, start_response):
@@ -251,8 +266,15 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
+    elif context.web_runtime == "hypercorn":
+        sio = socketio.AsyncServer(
+            async_mode="asgi",
+            client_manager=client_manager,
+            cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+        )
     elif context.web_runtime == "waitress":
         sio = socketio.Server(
+            allow_upgrades=True,
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
@@ -265,8 +287,6 @@ def create_socketio_instance(context):  # pylint: disable=R0914
         )
     #
     # TODO: patch sio to lock emits (and also allow to use catch-all handler for exposure)
-    #
-    context.app.wsgi_app = socketio.WSGIApp(sio, context.app.wsgi_app)
     #
     return sio
 
