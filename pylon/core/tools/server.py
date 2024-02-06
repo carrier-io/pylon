@@ -286,6 +286,29 @@ def run_server(context):
             handler_class=WebSocketHandler,
         )
         http_server.serve_forever()
+    elif not context.debug and context.web_runtime == "hypercorn":
+        log.info("Starting Hypercorn server")
+        import asyncio  # pylint: disable=E0401,C0412,C0415
+        import hypercorn.config  # pylint: disable=E0401,C0412,C0415
+        import hypercorn.asyncio  # pylint: disable=E0401,C0412,C0415
+        import hypercorn.middleware  # pylint: disable=E0401,C0412,C0415
+        #
+        host = context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST)
+        port = context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT)
+        #
+        config = hypercorn.config.Config()
+        config.bind = [f"{host}:{port}"]
+        #
+        app = hypercorn.middleware.AsyncioWSGIMiddleware(
+            context.app,
+        )
+        #
+        asyncio.run(
+            hypercorn.asyncio.serve(
+                app,
+                config,
+            ),
+        )
     elif not context.debug and context.web_runtime == "waitress":
         log.info("Starting Waitress server")
         import waitress  # pylint: disable=E0401,C0412,C0415
