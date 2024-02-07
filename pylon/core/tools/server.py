@@ -356,7 +356,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     def __getattr__(self, name):
         log.info("[SIO PROXY] %s", name)
-        raise RuntimeError("Not available")
+        return
 
 
 def run_server(context):
