@@ -231,10 +231,14 @@ class WaitressSocketWrapper:  # pylint: disable=R0903
         return getattr(self.socket, name)
 
 
-def create_socketio_instance(context):  # pylint: disable=R0914,R0912
+def create_socketio_instance(context):  # pylint: disable=R0914,R0912,R0915
     """ Create SocketIO instance """
     # May not be the best place for this, but whatever
     context.is_async = context.web_runtime in ["uvicorn", "hypercorn"]
+    #
+    if context.is_async:
+        # Let's mute "Task exception was never retrieved" & co for now
+        logging.getLogger("asyncio").setLevel(logging.CRITICAL)
     #
     client_manager = None
     #

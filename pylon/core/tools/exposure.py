@@ -265,9 +265,13 @@ def on_sio(event, namespace, args):
         args = tuple(args)
     #
     for reg_id in context.exposure.registry.values():
-        context.exposure.rpc_node.call(
-            f"{reg_id}_sio_call", event, namespace, args,
-        )
+        try:
+            context.exposure.rpc_node.call(
+                f"{reg_id}_sio_call", event, namespace, args,
+            )
+        except:  # pylint: disable=W0702
+            if not context.is_async:
+                log.exception("Failed to call SIO exposure handler, skipping")
 
 
 def prepare_rpc_environ(wsgi_environ):
@@ -348,4 +352,8 @@ def sio_call(event, namespace, args):
     """ Invoke this SIO handlers """
     from tools import context  # pylint: disable=E0401,C0411,C0415
     #
-    context.sio.pylon_trigger_event(event, namespace, *args)
+    try:
+        context.sio.pylon_trigger_event(event, namespace, *args)
+    except:  # pylint: disable=W0702
+        if not context.is_async:
+            log.exception("Failed to trigger SIO exposure event")
