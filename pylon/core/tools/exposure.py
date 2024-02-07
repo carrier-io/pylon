@@ -81,13 +81,21 @@ def expose():
                 endpoint=f"pylon_exposure_{context.id}_{idx}",
                 view_func=on_request,
                 defaults={"sub_path": ""},
+                methods=[
+                    "HEAD", "OPTIONS", "GET", "POST", "PUT", "PATCH", "DELETE"
+                ],
             )
             #
             context.app.add_url_rule(
                 f'{base_url}/<path:sub_path>',
                 endpoint=f"pylon_exposure_{context.id}_{idx}_sub_path",
                 view_func=on_request,
+                methods=[
+                    "HEAD", "OPTIONS", "GET", "POST", "PUT", "PATCH", "DELETE"
+                ],
             )
+            #
+            # (Pre-)Register public route un auth somehow?
         #
         context.sio.pylon_add_any_handler(on_sio)
     #
@@ -122,9 +130,8 @@ def expose():
     #
     # To improve:
     # - periodic announce to other pylons... and handle that announces
-    # - request data, as it needs special handling
-    # - streaming, caching and so on
     # - liveness checks, RPC timeouts
+    # - streaming, caching and so on
 
 
 def unexpose():
