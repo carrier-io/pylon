@@ -21,6 +21,7 @@
 """
 
 import io
+import sys
 import http.server
 
 import flask  # pylint: disable=E0401
@@ -280,20 +281,19 @@ def prepare_rpc_environ(wsgi_environ):
     result = dict(wsgi_environ)
     #
     drop_keys = [
-        "wsgi.input",
-        "wsgi.errors",
         "werkzeug.socket",
         "werkzeug.request",
-        "wsgi.file_wrapper",
         "waitress.client_disconnected",
-        "asgi.receive",
         "asgi.send",
+        "asgi.receive",
+        "wsgi.errors",
+        "wsgi.file_wrapper",
     ]
-    #
-    # Need to save request input and some other data
     #
     for key in drop_keys:
         result.pop(key, None)
+    #
+    result["wsgi.input"] = result["wsgi.input"].read()
     #
     return result
 
@@ -302,7 +302,8 @@ def prepare_call_environ(wsgi_environ):
     """ Prepare environ for local wsgi_call """
     result = dict(wsgi_environ)
     #
-    # Need to restore request input and some other data
+    result["wsgi.errors"] = sys.stderr
+    result["wsgi.input"] = io.BytesIO(result["wsgi.input"])
     #
     return result
 
@@ -352,6 +353,13 @@ def wsgi_call(environ):
 def sio_call(event, namespace, args):
     """ Invoke this SIO handlers """
     from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
+    if event == "connect":
+        call_environ = prepare_call_environ(args[1])
+        #
+        args = list(args)
+        args[1] = call_environ
+        args = tuple(args)
     #
     try:
         context.sio.pylon_trigger_event(event, namespace, *args)
