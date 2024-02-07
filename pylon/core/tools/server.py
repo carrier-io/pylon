@@ -223,6 +223,9 @@ class WaitressSocketWrapper:  # pylint: disable=R0903
 
 def create_socketio_instance(context):  # pylint: disable=R0914
     """ Create SocketIO instance """
+    # May not be the best place for this, but whatever
+    context.is_async = context.web_runtime in ["uvicorn", "hypercorn"]
+    #
     client_manager = None
     #
     socketio_config = context.settings.get("socketio", {})
@@ -239,9 +242,15 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             queue = socketio_rabbitmq.get("queue", "socketio")
             #
             url = f'ampq://{user}:{password}@{host}:{port}/{vhost}'
-            client_manager = socketio.KombuManager(
-                url=url, channel=queue,
-            )
+            #
+            if context.is_async:
+                client_manager = socketio.AsyncAioPikaManager(
+                    url=url, channel=queue,
+                )
+            else:
+                client_manager = socketio.KombuManager(
+                    url=url, channel=queue,
+                )
         except:  # pylint: disable=W0702
             log.exception("Cannot make KombuManager instance, SocketIO is in standalone mode")
     #
@@ -256,13 +265,17 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             #
             scheme = "rediss" if use_ssl else "redis"
             url = f'{scheme}://:{password}@{host}:{port}/{database}'
-            client_manager = socketio.RedisManager(
-                url=url, channel=queue,
-            )
+            #
+            if context.is_async:
+                client_manager = socketio.AsyncRedisManager(
+                    url=url, channel=queue,
+                )
+            else:
+                client_manager = socketio.RedisManager(
+                    url=url, channel=queue,
+                )
         except:  # pylint: disable=W0702
             log.exception("Cannot make RedisManager instance, SocketIO is in standalone mode")
-    #
-    context.is_async = False  # May not be the best place for this, but whatever
     #
     if not context.debug and context.web_runtime == "gevent":
         sio = SIOPatchedServer(
@@ -271,7 +284,6 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     elif context.web_runtime == "uvicorn":
-        context.is_async = True
         context.sio_async = socketio.AsyncServer(
             async_mode="asgi",
             client_manager=client_manager,
@@ -279,7 +291,6 @@ def create_socketio_instance(context):  # pylint: disable=R0914
         )
         sio = SIOAsyncProxy(context)
     elif context.web_runtime == "hypercorn":
-        context.is_async = True
         context.sio_async = socketio.AsyncServer(
             async_mode="asgi",
             client_manager=client_manager,
