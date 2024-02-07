@@ -413,9 +413,13 @@ def run_server(context):
         config = hypercorn.config.Config()
         config.bind = [f"{host}:{port}"]
         #
-        context.app_async = hypercorn.middleware.AsyncioWSGIMiddleware(
-            context.app,
-        )
+        # context.app_async = hypercorn.middleware.AsyncioWSGIMiddleware(
+        #     context.app,
+        # )
+        #
+        import asgiref.wsgi  # pylint: disable=E0401,C0412,C0415
+        #
+        context.app_async = asgiref.wsgi.WsgiToAsgi(context.app)
         context.app_async = socketio.ASGIApp(
             context.sio_async, context.app_async,
         )
