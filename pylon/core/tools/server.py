@@ -436,7 +436,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
     def emit(self, *args, **kwargs):
         """ Proxy method """
         if self._in_async():
-            return await self.context.sio_async.emit(*args, **kwargs)  # pylint: disable=E1142
+            return self.context.sio_async.emit(*args, **kwargs)
         #
         with self._emit_lock:
             return self._sync_emit(*args, **kwargs)
@@ -452,7 +452,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
     def pylon_trigger_event(self, event, namespace, *args):
         """ Call original handlers """
         if self._in_async():
-            return await self.context.sio_async.pylon_trigger_event(  # pylint: disable=E1142
+            return self.context.sio_async.pylon_trigger_event(
                 event, namespace, *args,
             )
         #
