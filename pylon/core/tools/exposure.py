@@ -22,6 +22,8 @@
 
 import io
 import sys
+import time
+import threading
 import http.server
 
 import flask  # pylint: disable=E0401
@@ -40,9 +42,11 @@ def expose():
     context.exposure.id = f"pylon_{context.id}"
     context.exposure.config = context.settings.get("exposure", {})
     context.exposure.debug = context.exposure.config.get("debug", False)
+    context.exposure.stop_event = threading.Event()
     context.exposure.event_node = None
     context.exposure.rpc_node = None
     context.exposure.registry = {}
+    context.exposure.threads = Context()
     #
     http.server.BaseHTTPRequestHandler.version_string = lambda *args, **kwargs: "Pylon"
     #
@@ -127,9 +131,11 @@ def expose():
                 "url_prefix": context.url_prefix,
             },
         )
+        #
+        context.exposure.threads.announcer = ExposureAnnoucer(context)
+        context.exposure.threads.announcer.start()
     #
     # To improve:
-    # - periodic announce to other pylons... and handle that announces
     # - liveness checks, RPC timeouts
     # - streaming, caching and so on
 
@@ -142,9 +148,15 @@ def unexpose():
     if context.exposure.event_node is None:
         return
     #
+    context.exposure.stop_event.set()
+    #
+    # Exposed?
+    #
     config = context.exposure.config
     #
     if config.get("expose", False):
+        context.exposure.threads.announcer.join(timeout=5)
+        #
         context.exposure.event_node.emit(
             "pylon_unexposed",
             {
@@ -164,8 +176,7 @@ def unexpose():
             ping, name=f"{context.exposure.id}_ping"
         )
     #
-    #
-    context.exposure.rpc_node.stop()
+    # Handling?
     #
     handle_config = config.get("handle", {})
     #
@@ -180,6 +191,7 @@ def unexpose():
             "pylon_exposed", on_pylon_exposed
         )
     #
+    context.exposure.rpc_node.stop()
     context.exposure.event_node.stop()
 
 
@@ -373,3 +385,32 @@ def sio_call(event, namespace, args):
     except:  # pylint: disable=W0702
         if not context.is_async:
             log.exception("Failed to trigger SIO exposure event")
+
+
+class ExposureAnnoucer(threading.Thread):  # pylint: disable=R0903
+    """ Announce about exposure periodically """
+
+    def __init__(self, context, interval=15):
+        super().__init__(daemon=True)
+        self.context = context
+        self.interval = interval
+        self.last_announce = time.time()
+
+    def run(self):
+        """ Run thread """
+        #
+        while not self.context.exposure.stop_event.is_set():
+            try:
+                time.sleep(1)
+                now = time.time()
+                if now - self.last_announce >= self.interval:
+                    self.last_announce = now
+                    self.context.exposure.event_node.emit(
+                        "pylon_exposed",
+                        {
+                            "exposure_id": self.context.exposure.id,
+                            "url_prefix": self.context.url_prefix,
+                        },
+                    )
+            except:  # pylint: disable=W0702
+                log.exception("Exception in announcer thread, continuing")
