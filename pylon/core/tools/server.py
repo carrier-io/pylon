@@ -405,10 +405,10 @@ class SIOAsyncProxy:  # pylint: disable=R0903
         self._any_async_handlers = {}  # handler -> async version
         #
         import asgiref.sync  # pylint: disable=E0401,C0412,C0415
-        self._sync_emit = asgiref.sync.AsyncToSync(
+        self.__sync_emit = asgiref.sync.AsyncToSync(
             self.context.sio_async.emit
         )
-        self._sync_trigger_event = asgiref.sync.AsyncToSync(
+        self.__sync_trigger_event = asgiref.sync.AsyncToSync(
             self.context.sio_async.pylon_trigger_event
         )
 
@@ -426,20 +426,27 @@ class SIOAsyncProxy:  # pylint: disable=R0903
         return False
 
     def __getattr__(self, name):
+        if self._in_async():
+            if hasattr(self, f"_async_{name}"):
+                return getattr(self, f"_async_{name}")
+        elif hasattr(self, f"_sync_{name}"):
+            return getattr(self, f"_sync_{name}")
+        #
         log.warning("[SIOAsyncProxy NotImplemented] %s", name)
-        return lambda *args, **kwargs: None
+        raise AttributeError
 
     def on(self, *args, **kwargs):
         """ Proxy method """
         return self.context.sio_async.on(*args, **kwargs)
 
-    def emit(self, *args, **kwargs):
+    async def _async_emit(self, *args, **kwargs):
         """ Proxy method """
-        if self._in_async():
-            return self.context.sio_async.emit(*args, **kwargs)
-        #
+        return await self.context.sio_async.emit(*args, **kwargs)
+
+    def _sync_emit(self, *args, **kwargs):
+        """ Proxy method """
         with self._emit_lock:
-            return self._sync_emit(*args, **kwargs)
+            return self.__sync_emit(*args, **kwargs)
 
     def enter_room(self, *args, **kwargs):
         """ Proxy method """
@@ -451,12 +458,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     def pylon_trigger_event(self, event, namespace, *args):
         """ Call original handlers """
-        if self._in_async():
-            return self.context.sio_async.pylon_trigger_event(
-                event, namespace, *args,
-            )
-        #
-        return self._sync_trigger_event(event, namespace, *args)
+        return self.__sync_trigger_event(event, namespace, *args)
 
     def pylon_add_any_handler(self, handler):
         """ Add *any* handler """
