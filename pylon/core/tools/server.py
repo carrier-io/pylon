@@ -121,6 +121,16 @@ def add_middlewares(context):
         context.app.wsgi_app = ProxyFix(
             context.app.wsgi_app, x_for=1, x_proto=1,
         )
+    #
+    # ASGI
+    #
+    if context.is_async:
+        import asgiref.wsgi  # pylint: disable=E0401,C0412,C0415
+        #
+        context.app_async = asgiref.wsgi.WsgiToAsgi(context.app)
+        context.app_async = socketio.ASGIApp(
+            context.sio_async, context.app_async,
+        )
 
 
 def noop_app(environ, start_response):
@@ -221,7 +231,7 @@ class WaitressSocketWrapper:  # pylint: disable=R0903
         return getattr(self.socket, name)
 
 
-def create_socketio_instance(context):  # pylint: disable=R0914
+def create_socketio_instance(context):  # pylint: disable=R0914,R0912
     """ Create SocketIO instance """
     # May not be the best place for this, but whatever
     context.is_async = context.web_runtime in ["uvicorn", "hypercorn"]
@@ -387,13 +397,7 @@ def run_server(context):
         http_server.serve_forever()
     elif not context.debug and context.web_runtime == "uvicorn":
         log.info("Starting Uvicorn server")
-        import asgiref.wsgi  # pylint: disable=E0401,C0412,C0415
         import uvicorn  # pylint: disable=E0401,C0412,C0415
-        #
-        context.app_async = asgiref.wsgi.WsgiToAsgi(context.app)
-        context.app_async = socketio.ASGIApp(
-            context.sio_async, context.app_async,
-        )
         #
         uvicorn.run(
             context.app_async,
@@ -405,24 +409,12 @@ def run_server(context):
         import asyncio  # pylint: disable=E0401,C0412,C0415
         import hypercorn.config  # pylint: disable=E0401,C0412,C0415
         import hypercorn.asyncio  # pylint: disable=E0401,C0412,C0415
-        import hypercorn.middleware  # pylint: disable=E0401,C0412,C0415
         #
         host = context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST)
         port = context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT)
         #
         config = hypercorn.config.Config()
         config.bind = [f"{host}:{port}"]
-        #
-        # context.app_async = hypercorn.middleware.AsyncioWSGIMiddleware(
-        #     context.app,
-        # )
-        #
-        import asgiref.wsgi  # pylint: disable=E0401,C0412,C0415
-        #
-        context.app_async = asgiref.wsgi.WsgiToAsgi(context.app)
-        context.app_async = socketio.ASGIApp(
-            context.sio_async, context.app_async,
-        )
         #
         asyncio.run(
             hypercorn.asyncio.serve(
