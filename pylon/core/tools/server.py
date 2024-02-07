@@ -294,14 +294,14 @@ def create_socketio_instance(context):  # pylint: disable=R0914,R0912
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     elif context.web_runtime == "uvicorn":
-        context.sio_async = socketio.AsyncServer(
+        context.sio_async = SIOPatchedAsyncServer(
             async_mode="asgi",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
         sio = SIOAsyncProxy(context)
     elif context.web_runtime == "hypercorn":
-        context.sio_async = socketio.AsyncServer(
+        context.sio_async = SIOPatchedAsyncServer(
             async_mode="asgi",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
@@ -367,17 +367,94 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
         self._pylon_any_handlers.remove(handler)
 
 
+class SIOPatchedAsyncServer(socketio.AsyncServer):  # pylint: disable=R0903
+    """ SockerIO AsyncServer patched for Pylon """
+
+    def __init__(self, *args, **kwargs):
+        self.pylon_any_handlers = []  # 'public', expected to be used by proxy
+        #
+        super().__init__(*args, **kwargs)
+
+    async def _trigger_event(self, event, namespace, *args):
+        """ Call *any* handlers first """
+        import asyncio  # pylint: disable=E0401,C0412,C0415
+        #
+        for any_handler in self.pylon_any_handlers:
+            try:
+                if asyncio.iscoroutinefunction(any_handler):
+                    await any_handler(event, namespace, args)
+                else:
+                    any_handler(event, namespace, args)
+            except:  # pylint: disable=W0702
+                log.exception("Failed to run SIO *any* handler, skipping")
+        #
+        return await super()._trigger_event(event, namespace, *args)
+
+    async def pylon_trigger_event(self, event, namespace, *args):
+        """ Call original handlers """
+        return await super()._trigger_event(event, namespace, *args)
+
+
 class SIOAsyncProxy:  # pylint: disable=R0903
     """ Sync proxy to SockerIO AsyncServer """
 
     def __init__(self, context):
         self.context = context
-        self.emit_lock = threading.Lock()
-        self.any_handlers = {}  # handler -> async version
+        #
+        self._emit_lock = threading.Lock()
+        self._any_async_handlers = {}  # handler -> async version
+        #
+        import asgiref.sync  # pylint: disable=E0401,C0412,C0415
+        self._sync_emit = asgiref.sync.AsyncToSync(
+            self.context.sio_async.emit
+        )
+        self._sync_trigger_event = asgiref.sync.AsyncToSync(
+            self.context.sio_async.pylon_trigger_event
+        )
 
     def __getattr__(self, name):
-        log.info("[SIO PROXY] %s", name)
+        log.warning("[SIOAsyncProxy NotImplemented] %s", name)
         return lambda *args, **kwargs: None
+
+    def on(self, *args, **kwargs):
+        """ Proxy method """
+        return self.context.sio_async.on(*args, **kwargs)
+
+    def emit(self, *args, **kwargs):
+        """ Proxy method """
+        with self._emit_lock:
+            return self._sync_emit(*args, **kwargs)
+
+    def enter_room(self, *args, **kwargs):
+        """ Proxy method """
+        return self.context.sio_async.enter_room(*args, **kwargs)
+
+    def leave_room(self, *args, **kwargs):
+        """ Proxy method """
+        return self.context.sio_async.leave_room(*args, **kwargs)
+
+    def pylon_trigger_event(self, event, namespace, *args):
+        """ Call original handlers """
+        return self._sync_trigger_event(event, namespace, *args)
+
+    def pylon_add_any_handler(self, handler):
+        """ Add *any* handler """
+        if handler in self._any_async_handlers:
+            return
+        #
+        import asgiref.sync  # pylint: disable=E0401,C0412,C0415
+        async_handler = asgiref.sync.SyncToAsync(handler)
+        #
+        self._any_async_handlers[handler] = async_handler
+        self.context.sio_async.pylon_any_handlers.append(async_handler)
+
+    def pylon_remove_any_handler(self, handler):
+        """ Remove *any* handler """
+        if handler not in self._any_async_handlers:
+            return
+        #
+        async_handler = self._any_async_handlers.pop(handler)
+        self.context.sio_async.pylon_any_handlers.remove(async_handler)
 
 
 def run_server(context):
