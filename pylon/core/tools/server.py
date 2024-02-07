@@ -356,7 +356,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     def __getattr__(self, name):
         log.info("[SIO PROXY] %s", name)
-        return lambda: None
+        return lambda *args, **kwargs: None
 
 
 def run_server(context):
