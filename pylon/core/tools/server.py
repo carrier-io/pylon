@@ -402,6 +402,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
         self.context = context
         #
         self._emit_lock = threading.Lock()
+        self._async_handlers = {}  # handler -> async version
         self._any_async_handlers = {}  # handler -> async version
         #
         import asgiref.sync  # pylint: disable=E0401,C0412,C0415
@@ -435,9 +436,16 @@ class SIOAsyncProxy:  # pylint: disable=R0903
         log.warning("[SIOAsyncProxy NotImplemented] %s", name)
         raise AttributeError
 
-    def on(self, *args, **kwargs):
+    def on(self, event, handler=None, namespace=None):
         """ Proxy method """
-        return self.context.sio_async.on(*args, **kwargs)
+        if handler is not None and handler not in self._async_handlers:
+            import asgiref.sync  # pylint: disable=E0401,C0412,C0415
+            self._async_handlers[handler] = asgiref.sync.SyncToAsync(handler)
+        #
+        if handler is not None:
+            handler = self._async_handlers[handler]
+        #
+        return self.context.sio_async.on(event, handler, namespace)
 
     async def _async_emit(self, *args, **kwargs):
         """ Proxy method """
