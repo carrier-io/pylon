@@ -515,6 +515,7 @@ def run_server(context):
             context.app_async,
             host=context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
             port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
+            log_level="critical",
         )
     elif not context.debug and context.web_runtime == "hypercorn":
         log.info("Starting Hypercorn server")

@@ -119,10 +119,11 @@ def expose():
             },
         )
     #
-    # Next: periodic announce to other pylons... and handle announces
-    # And: request data + SIO, as it needs special handling
-    # Later: streaming, caching and so on
-    # Health: liveness checks, RPC timeouts
+    # To improve:
+    # - periodic announce to other pylons... and handle that announces
+    # - request data, as it needs special handling
+    # - streaming, caching and so on
+    # - liveness checks, RPC timeouts
 
 
 def unexpose():
