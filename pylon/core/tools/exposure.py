@@ -88,7 +88,7 @@ def expose():
                 view_func=on_request,
             )
         #
-        context.sio.pylon_any_handlers.append(on_sio)
+        context.sio.pylon_add_any_handler(on_sio)
     #
     # RpcNode
     #
@@ -133,7 +133,9 @@ def unexpose():
     if context.exposure.event_node is None:
         return
     #
-    if context.exposure.config.get("expose", False):
+    config = context.exposure.config
+    #
+    if config.get("expose", False):
         context.exposure.event_node.emit(
             "pylon_unexposed",
             {
@@ -153,9 +155,14 @@ def unexpose():
             ping, name=f"{context.exposure.id}_ping"
         )
     #
+    #
     context.exposure.rpc_node.stop()
     #
-    if context.exposure.config.get("handle", False):
+    handle_config = config.get("handle", {})
+    #
+    if handle_config.get("enabled", False):
+        context.sio.pylon_remove_any_handler(on_sio)
+        #
         context.exposure.event_node.unsubscribe(
             "pylon_unexposed", on_pylon_unexposed
         )

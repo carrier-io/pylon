@@ -49,12 +49,13 @@ def add_middlewares(context):
     #
     # SIO
     #
-    context.app.wsgi_app = socketio.WSGIApp(
-        context.sio, context.app.wsgi_app,
-    )
-    #
-    if context.web_runtime == "waitress":
-        context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
+    if not context.is_async:
+        context.app.wsgi_app = socketio.WSGIApp(
+            context.sio, context.app.wsgi_app,
+        )
+        #
+        if context.web_runtime == "waitress":
+            context.app.wsgi_app = WaitressSocket(context.app.wsgi_app)
     #
     # Health
     #
@@ -261,6 +262,8 @@ def create_socketio_instance(context):  # pylint: disable=R0914
         except:  # pylint: disable=W0702
             log.exception("Cannot make RedisManager instance, SocketIO is in standalone mode")
     #
+    context.is_async = False  # May not be the best place for this, but whatever
+    #
     if not context.debug and context.web_runtime == "gevent":
         sio = SIOPatchedServer(
             async_mode="gevent",
@@ -268,21 +271,21 @@ def create_socketio_instance(context):  # pylint: disable=R0914
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
     elif context.web_runtime == "uvicorn":
-        # Note: not working, hangs event loop
-        sio = SIOPatchedServer(
-            allow_upgrades=False,
-            async_mode="threading",
+        context.is_async = True
+        context.sio_async = socketio.AsyncServer(
+            async_mode="asgi",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
+        sio = SIOAsyncProxy(context)
     elif context.web_runtime == "hypercorn":
-        # Note: not working, hangs event loop
-        sio = SIOPatchedServer(
-            allow_upgrades=False,
-            async_mode="threading",
+        context.is_async = True
+        context.sio_async = socketio.AsyncServer(
+            async_mode="asgi",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
         )
+        sio = SIOAsyncProxy(context)
     elif context.web_runtime == "waitress":
         sio = SIOPatchedServer(
             allow_upgrades=True,
@@ -304,19 +307,19 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
     """ SockerIO Server patched for Pylon """
 
     def __init__(self, *args, **kwargs):
-        self.pylon_emit_lock = threading.Lock()
-        self.pylon_any_handlers = []
+        self._pylon_emit_lock = threading.Lock()
+        self._pylon_any_handlers = []
         #
         super().__init__(*args, **kwargs)
 
     def emit(self, *args, **kwargs):
         """ Lock and emit() """
-        with self.pylon_emit_lock:
+        with self._pylon_emit_lock:
             return super().emit(*args, **kwargs)
 
     def _trigger_event(self, event, namespace, *args):
         """ Call *any* handlers first """
-        for any_handler in self.pylon_any_handlers:
+        for any_handler in self._pylon_any_handlers:
             try:
                 any_handler(event, namespace, args)
             except:  # pylint: disable=W0702
@@ -327,6 +330,33 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
     def pylon_trigger_event(self, event, namespace, *args):
         """ Call original handlers """
         return super()._trigger_event(event, namespace, *args)
+
+    def pylon_add_any_handler(self, handler):
+        """ Add *any* handler """
+        if handler in self._pylon_any_handlers:
+            return
+        #
+        self._pylon_any_handlers.append(handler)
+
+    def pylon_remove_any_handler(self, handler):
+        """ Remove *any* handler """
+        if handler not in self._pylon_any_handlers:
+            return
+        #
+        self._pylon_any_handlers.remove(handler)
+
+
+class SIOAsyncProxy:  # pylint: disable=R0903
+    """ Sync proxy to SockerIO AsyncServer """
+
+    def __init__(self, context):
+        self.context = context
+        self.emit_lock = threading.Lock()
+        self.any_handlers = {}  # handler -> async version
+
+    def __getattr__(self, name):
+        log.info("[SIO PROXY] %s", name)
+        raise RuntimeError("Not available")
 
 
 def run_server(context):
@@ -349,10 +379,13 @@ def run_server(context):
         import asgiref.wsgi  # pylint: disable=E0401,C0412,C0415
         import uvicorn  # pylint: disable=E0401,C0412,C0415
         #
-        app = asgiref.wsgi.WsgiToAsgi(context.app)
+        context.app_async = asgiref.wsgi.WsgiToAsgi(context.app)
+        context.app_async = socketio.ASGIApp(
+            context.sio_async, context.app_async,
+        )
         #
         uvicorn.run(
-            app,
+            context.app_async,
             host=context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
             port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
         )
@@ -369,12 +402,16 @@ def run_server(context):
         config = hypercorn.config.Config()
         config.bind = [f"{host}:{port}"]
         #
-        app = hypercorn.middleware.AsyncioWSGIMiddleware(
+        context.app_async = hypercorn.middleware.AsyncioWSGIMiddleware(
             context.app,
         )
+        context.app_async = socketio.ASGIApp(
+            context.sio_async, context.app_async,
+        )
+        #
         asyncio.run(
             hypercorn.asyncio.serve(
-                app,
+                context.app_async,
                 config,
             ),
         )
