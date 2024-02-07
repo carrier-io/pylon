@@ -281,6 +281,8 @@ def prepare_rpc_environ(wsgi_environ):
         "werkzeug.request",
         "wsgi.file_wrapper",
         "waitress.client_disconnected",
+        "asgi.receive",
+        "asgi.send",
     ]
     #
     # Need to save request input and some other data

@@ -412,6 +412,19 @@ class SIOAsyncProxy:  # pylint: disable=R0903
             self.context.sio_async.pylon_trigger_event
         )
 
+    @staticmethod
+    def _in_async():
+        try:
+            import asyncio  # pylint: disable=E0401,C0412,C0415
+            event_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            if event_loop.is_running():
+                return True
+        #
+        return False
+
     def __getattr__(self, name):
         log.warning("[SIOAsyncProxy NotImplemented] %s", name)
         return lambda *args, **kwargs: None
@@ -422,6 +435,9 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     def emit(self, *args, **kwargs):
         """ Proxy method """
+        if self._in_async():
+            return await self.context.sio_async.emit(*args, **kwargs)  # pylint: disable=E1142
+        #
         with self._emit_lock:
             return self._sync_emit(*args, **kwargs)
 
@@ -435,6 +451,11 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     def pylon_trigger_event(self, event, namespace, *args):
         """ Call original handlers """
+        if self._in_async():
+            return await self.context.sio_async.pylon_trigger_event(  # pylint: disable=E1142
+                event, namespace, *args,
+            )
+        #
         return self._sync_trigger_event(event, namespace, *args)
 
     def pylon_add_any_handler(self, handler):
