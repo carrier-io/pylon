@@ -12,10 +12,11 @@ RUN set -x \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip
+ARG PIP_ARGS="--no-cache-dir"
+RUN pip install $PIP_ARGS --upgrade pip
 
 COPY ./ ./pylon
-RUN pip install --no-cache-dir ./pylon
+RUN pip install $PIP_ARGS ./pylon
 RUN rm -r ./pylon
 
 CMD [ "python", "-m", "pylon.main" ]
