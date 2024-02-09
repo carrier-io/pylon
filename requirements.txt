@@ -8,6 +8,7 @@ async-timeout==4.0.2
 attrs==21.4.0
 bcrypt==3.2.0
 bidict==0.22.1
+centry_logging @ git+https://github.com/centry-core/centry_logging.git
 cffi==1.15.0
 chardet==3.0.4
 charset-normalizer==2.1.1
