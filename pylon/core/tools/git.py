@@ -171,6 +171,11 @@ def clone(  # pylint: disable=R0913,R0912,R0914
         target_tree = repository[b"refs/remotes/origin/" + branch_b]
     except:  # pylint: disable=W0702
         target_tree = None
+    # Get commit tree (if branch is a SHA1)
+    try:
+        commit_tree = repository[branch_b]
+    except:  # pylint: disable=W0702
+        commit_tree = None
     # Checkout branch
     branch_to_track = None
     if target_tree is not None:
@@ -180,6 +185,9 @@ def clone(  # pylint: disable=R0913,R0912,R0914
         repository.reset_index(repository[b"HEAD"].tree)
         #
         branch_to_track = branch
+    elif commit_tree is not None:
+        log.info("Checking out commit %s", branch)
+        repository.reset_index(commit_tree.tree)
     elif head_tree is not None:
         try:
             default_branch_name = repository.refs.follow(b"HEAD")[0][1]
