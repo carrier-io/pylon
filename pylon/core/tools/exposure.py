@@ -23,6 +23,7 @@
 import io
 import sys
 import time
+import queue
 import threading
 import http.server
 
@@ -258,9 +259,17 @@ def on_request(sub_path):
     if context.exposure.debug:
         log.info("WSGI env [prepared]: %s", call_environ)
     #
-    wsgi_result = context.exposure.rpc_node.call(
-        f"{exposure_id}_wsgi_call", call_environ,
-    )
+    try:
+        wsgi_result = context.exposure.rpc_node.call_with_timeout(
+            f"{exposure_id}_wsgi_call",
+            context.exposure.config.get("wsgi_call_timeout", None),
+            call_environ,
+        )
+    except queue.Empty:
+        if context.exposure.debug:
+            log.warning("WSGI call timeout")
+        #
+        flask.abort(504)
     #
     view_rv = (
         wsgi_result["body"],
@@ -287,8 +296,10 @@ def on_sio(event, namespace, args):
     #
     for reg_id in context.exposure.registry.values():
         try:
-            context.exposure.rpc_node.call(
-                f"{reg_id}_sio_call", event, namespace, args,
+            context.exposure.rpc_node.call_with_timeout(
+                f"{reg_id}_sio_call",
+                context.exposure.config.get("sio_call_timeout", None),
+                event, namespace, args,
             )
         except:  # pylint: disable=W0702
             if not context.is_async:
