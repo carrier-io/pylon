@@ -103,6 +103,9 @@ def expose():
             # (Pre-)Register public route un auth somehow?
         #
         context.sio.pylon_add_any_handler(on_sio)
+        #
+        context.exposure.threads.pinger = LivenessChecker(context)
+        context.exposure.threads.pinger.start()
     #
     # RpcNode
     #
@@ -137,7 +140,6 @@ def expose():
         context.exposure.threads.announcer.start()
     #
     # To improve:
-    # - liveness checks, RPC timeouts
     # - streaming, caching and so on
 
 
@@ -182,6 +184,8 @@ def unexpose():
     handle_config = config.get("handle", {})
     #
     if handle_config.get("enabled", False):
+        context.exposure.threads.pinger.join(timeout=15)
+        #
         context.sio.pylon_remove_any_handler(on_sio)
         #
         context.exposure.event_node.unsubscribe(
@@ -425,3 +429,73 @@ class ExposureAnnoucer(threading.Thread):  # pylint: disable=R0903
                     )
             except:  # pylint: disable=W0702
                 log.exception("Exception in announcer thread, continuing")
+
+
+class LivenessChecker(threading.Thread):  # pylint: disable=R0903
+    """ Ping exposed pylons periodically """
+
+    def __init__(self, context):
+        super().__init__(daemon=True)
+        self.context = context
+        self.state = {}  # reg_id -> {last_ping, missed_pings}
+
+    def run(self):  # pylint: disable=R0912
+        """ Run thread """
+        #
+        while not self.context.exposure.stop_event.is_set():
+            try:
+                time.sleep(1)
+                # Get currently exposed pylon IDs
+                exposed_reg_ids = list(self.context.exposure.registry.values())
+                state_reg_ids = list(self.state.keys())
+                #
+                added_ids = list(set(exposed_reg_ids).difference(state_reg_ids))
+                removed_ids = list(set(state_reg_ids).difference(exposed_reg_ids))
+                #
+                for reg_id in added_ids:
+                    self.state[reg_id] = {
+                        "last_ping": time.time(),
+                        "missed_pings": 0,
+                    }
+                #
+                for reg_id in removed_ids:
+                    self.state.pop(reg_id, None)
+                #
+                to_check = []
+                now = time.time()
+                #
+                for reg_id, state in self.state.items():
+                    if now - state["last_ping"] >= \
+                            self.context.exposure.config.get("ping_interval", 15):
+                        to_check.append(reg_id)
+                #
+                if to_check:
+                    reg_id = to_check.pop(0)
+                    #
+                    try:
+                        ping_result = self.context.exposure.rpc_node.call_with_timeout(
+                            f"{reg_id}_ping",
+                            self.context.exposure.config.get("ping_timeout", 5),
+                        )
+                        #
+                        if ping_result is not True:
+                            raise RuntimeError("Invalid ping result")
+                    except:  # pylint: disable=W0702
+                        if self.context.exposure.debug:
+                            log.exception("Pylon ping failed: %s", reg_id)
+                        #
+                        self.state[reg_id]["last_ping"] = time.time()
+                        self.state[reg_id]["missed_pings"] += 1
+                        #
+                        if self.state[reg_id]["missed_pings"] >= \
+                                self.context.exposure.config.get("max_missed_pings", 3):
+                            # Do not emit, just process locally (e.g. if this pylon network failed)
+                            on_pylon_unexposed("pylon_unexposed", {"exposure_id": reg_id})
+                    else:
+                        if self.context.exposure.debug:
+                            log.info("Pylon ping done: %s", reg_id)
+                        #
+                        self.state[reg_id]["last_ping"] = time.time()
+                        self.state[reg_id]["missed_pings"] = 0
+            except:  # pylint: disable=W0702
+                log.exception("Exception in pinger thread, continuing")
