@@ -266,7 +266,7 @@ def on_request(sub_path):
     try:
         wsgi_result = context.exposure.rpc_node.call_with_timeout(
             f"{exposure_id}_wsgi_call",
-            context.exposure.config.get("wsgi_call_timeout", None),
+            context.exposure.config.get("wsgi_call_timeout", 86400),
             call_environ,
         )
     except queue.Empty:
@@ -302,7 +302,7 @@ def on_sio(event, namespace, args):
         try:
             context.exposure.rpc_node.call_with_timeout(
                 f"{reg_id}_sio_call",
-                context.exposure.config.get("sio_call_timeout", None),
+                context.exposure.config.get("sio_call_timeout", 86400),
                 event, namespace, args,
             )
         except:  # pylint: disable=W0702
