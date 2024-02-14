@@ -575,15 +575,6 @@ class ModuleManager:
 
     def init_modules(self):
         """ Load and init modules """
-        reloader_used = self.context.settings.get("server", dict()).get(
-            "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
-        )
-        #
-        if self.context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-            log.info(
-                "Running in development mode before reloader is started. Skipping module loading"
-            )
-            return
         # Disable bytecode caching and register resource providers
         sys.dont_write_bytecode = True
         pkg_resources.register_loader_type(DataModuleLoader, DataModuleProvider)
@@ -597,6 +588,16 @@ class ModuleManager:
             sys.modules["tools"].__path__ = []
         # Register context as a tool
         setattr(sys.modules["tools"], "context", self.context)
+        # Check if actions are needed
+        reloader_used = self.context.settings.get("server", dict()).get(
+            "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+        )
+        #
+        if self.context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+            log.info(
+                "Running in development mode before reloader is started. Skipping module loading"
+            )
+            return
         # Make providers
         self._init_providers()
         #

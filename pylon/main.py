@@ -140,14 +140,14 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Register Traefik route via Redis KV
     traefik.register_traefik_route(context)
     # Expose pylon
-    exposure.expose()
+    exposure.expose(context)
     # Run WSGI server
     try:
         server.run_server(context)
     finally:
         log.info("WSGI server stopped")
         # Unexpose pylon
-        exposure.unexpose()
+        exposure.unexpose(context)
         # Unregister traefik route
         traefik.unregister_traefik_route(context)
         # De-init modules

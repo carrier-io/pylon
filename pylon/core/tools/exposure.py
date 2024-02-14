@@ -20,6 +20,7 @@
     Exposure tools
 """
 
+import os
 import io
 import sys
 import time
@@ -31,13 +32,23 @@ import flask  # pylint: disable=E0401
 import arbiter  # pylint: disable=E0401
 
 from pylon.core.tools import log
+from pylon.core.tools import env
 from pylon.core.tools.context import Context
 
 
-def expose():
+def expose(context):
     """ Expose this pylon over pylon network """
+    reloader_used = context.settings.get("server", {}).get(
+        "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+    )
+    #
+    if context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        log.info(
+            "Running in development mode before reloader is started. Skipping exposure"
+        )
+        return
+    #
     log.info("Exposing pylon")
-    from tools import context  # pylint: disable=E0401,C0411,C0415
     #
     context.exposure = Context()
     context.exposure.id = f"pylon_{context.id}"
@@ -143,10 +154,19 @@ def expose():
     # - streaming, caching and so on
 
 
-def unexpose():
+def unexpose(context):
     """ Unexpose this pylon over pylon network """
+    reloader_used = context.settings.get("server", {}).get(
+        "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+    )
+    #
+    if context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        log.info(
+            "Running in development mode before reloader is started. Skipping unexposure"
+        )
+        return
+    #
     log.info("Unexposing pylon")
-    from tools import context  # pylint: disable=E0401,C0411,C0415
     #
     if context.exposure.event_node is None:
         return
