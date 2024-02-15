@@ -940,6 +940,10 @@ class ModuleManager:
         ):
         """ Install requirements into target site """
         cache_dir = self.settings["requirements"].get("cache", "/tmp/pylon_pip_cache")
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+        except:  # pylint: disable=W0702
+            pass
         #
         if constraint_paths is None:
             constraint_paths = []
