@@ -425,10 +425,10 @@ def sio_call(event, namespace, args):
 class ExposureAnnoucer(threading.Thread):  # pylint: disable=R0903
     """ Announce about exposure periodically """
 
-    def __init__(self, context, interval=15):
+    def __init__(self, context):
         super().__init__(daemon=True)
         self.context = context
-        self.interval = interval
+        self.interval = self.context.exposure.config.get("announce_interval", 15)
         self.last_announce = time.time()
 
     def run(self):
