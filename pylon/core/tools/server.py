@@ -505,6 +505,7 @@ def run_server(context):
             ),
             context.app,
             handler_class=WebSocketHandler,
+            **context.settings.get("server", {}).get("kwargs", {}),
         )
         http_server.serve_forever()
     elif not context.debug and context.web_runtime == "uvicorn":
@@ -516,6 +517,7 @@ def run_server(context):
             host=context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
             port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
             log_level="critical",
+            **context.settings.get("server", {}).get("kwargs", {}),
         )
     elif not context.debug and context.web_runtime == "hypercorn":
         log.info("Starting Hypercorn server")
@@ -526,8 +528,10 @@ def run_server(context):
         host = context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST)
         port = context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT)
         #
-        config = hypercorn.config.Config()
-        config.bind = [f"{host}:{port}"]
+        config = hypercorn.config.Config.from_mapping({
+            "bind": [f"{host}:{port}"],
+            **context.settings.get("server", {}).get("kwargs", {}),
+        })
         #
         asyncio.run(
             hypercorn.asyncio.serve(
@@ -550,6 +554,7 @@ def run_server(context):
             ),
             clear_untrusted_proxy_headers=False,
             ident="Pylon",
+            **context.settings.get("server", {}).get("kwargs", {}),
         )
     elif not context.debug:
         log.info("Starting Flask server")
@@ -558,6 +563,7 @@ def run_server(context):
             port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
             debug=False,
             use_reloader=False,
+            **context.settings.get("server", {}).get("kwargs", {}),
         )
     else:
         log.info("Starting Flask server in debug mode")
@@ -574,6 +580,7 @@ def run_server(context):
             reloader_interval=context.settings.get("server", {}).get(
                 "reloader_interval", int(env.get_var("RELOADER_INTERVAL", "1")),
             ),
+            **context.settings.get("server", {}).get("kwargs", {}),
         )
 
 
