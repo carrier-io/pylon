@@ -496,14 +496,6 @@ def run_server(context):
     """ Run WSGI or Flask server """
     if not context.debug and context.web_runtime == "gevent":
         log.info("Starting gevent WSGI server")
-        #
-        import ssl  # pylint: disable=C0415
-        import gevent.hub  # pylint: disable=E0401,C0412,C0415
-        #
-        hub_not_errors = list(gevent.hub.Hub.NOT_ERROR)
-        hub_not_errors.append(ssl.SSLError)
-        gevent.hub.Hub.NOT_ERROR = tuple(hub_not_errors)
-        #
         from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412,C0415
         from geventwebsocket.handler import WebSocketHandler  # pylint: disable=E0401,C0412,C0415
         http_server = WSGIServer(

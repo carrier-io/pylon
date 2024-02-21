@@ -35,6 +35,13 @@ if not CORE_DEVELOPMENT_MODE and CORE_WEB_RUNTIME == "gevent":
     #
     import psycogreen.gevent  # pylint: disable=E0401
     psycogreen.gevent.patch_psycopg()
+    #
+    import ssl
+    import gevent.hub  # pylint: disable=E0401
+    #
+    hub_not_errors = list(gevent.hub.Hub.NOT_ERROR)
+    hub_not_errors.append(ssl.SSLError)
+    gevent.hub.Hub.NOT_ERROR = tuple(hub_not_errors)
 
 #
 # Normal imports and code below
