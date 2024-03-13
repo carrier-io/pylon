@@ -92,15 +92,18 @@ def main():  # pylint: disable=R0912,R0914,R0915
     if not context.settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
-    # Set environment overrides (e.g. to add env var with data from vault)
-    log.info("Setting environment overrides")
-    for key, value in context.settings.get("environment", {}).items():
-        os.environ[key] = value
     # Save global node name
     context.node_name = context.settings.get("server", {}).get("name", socket.gethostname())
     # Generate pylon ID
     context.id = f'{context.node_name}_{str(uuid.uuid4())}'
     log.info("Pylon ID: %s", context.id)
+    # Set process title
+    import setproctitle  # pylint: disable=C0415,E0401
+    setproctitle.setproctitle(f'pylon {context.id}')
+    # Set environment overrides (e.g. to add env var with data from vault)
+    log.info("Setting environment overrides")
+    for key, value in context.settings.get("environment", {}).items():
+        os.environ[key] = value
     # Allow to override debug from config (if != gevent in env)
     if context.web_runtime != "gevent" and "debug" in context.settings.get("server", {}):
         context.debug = context.settings.get("server").get("debug")
