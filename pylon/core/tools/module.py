@@ -762,6 +762,8 @@ class ModuleManager:
                 requirements_base = tempfile.mkdtemp()
                 self.temporary_objects.append(requirements_base)
                 #
+                log.info("Installing requirements for: %s", module_descriptor.name)
+                #
                 try:
                     self.install_requirements(
                         requirements_path=requirements_txt,
