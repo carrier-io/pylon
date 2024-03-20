@@ -151,6 +151,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     git.apply_patches()
     # Load and initialize modules
     context.module_manager.init_modules()
+    context.event_manager.fire_event("pylon_modules_initialized", context.id)
     # Register Traefik route via Redis KV
     traefik.register_traefik_route(context)
     # Expose pylon
