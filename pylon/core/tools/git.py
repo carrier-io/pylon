@@ -181,7 +181,7 @@ def clone(  # pylint: disable=R0913,R0912,R0914,R0915
     except:  # pylint: disable=W0702
         # Get tag
         try:
-            commit_tree = repository[b"refs/tags/" + branch_b]
+            commit_tree = repository[b"refs/tags/" + branch_b].object[0]
             log.info("Found target: tag")
         except:  # pylint: disable=W0702
             commit_tree = None
