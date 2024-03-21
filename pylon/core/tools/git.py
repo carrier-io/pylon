@@ -171,24 +171,31 @@ def clone(  # pylint: disable=R0913,R0912,R0914,R0915
     branch_b = branch.encode("utf-8")
     try:
         target_tree = repository[b"refs/remotes/origin/" + branch_b]
+        log.info("Found target: branch")
     except:  # pylint: disable=W0702
         target_tree = None
     # Get commit tree (if branch is a SHA1)
     try:
         commit_tree = repository[branch_b]
+        log.info("Found target: commit")
     except:  # pylint: disable=W0702
-        commit_tree = None
+        # Get tag
+        try:
+            commit_tree = repository[b"refs/tags/" + branch_b]
+            log.info("Found target: tag")
+        except:  # pylint: disable=W0702
+            commit_tree = None
     # Checkout branch
     branch_to_track = None
     if target_tree is not None:
-        log.info("Checking out branch %s", branch)
+        log.info("Checking out branch tree %s", branch)
         repository[b"refs/heads/" + branch_b] = repository[b"refs/remotes/origin/" + branch_b]
         repository.refs.set_symbolic_ref(b"HEAD", b"refs/heads/" + branch_b)
         repository.reset_index(repository[b"HEAD"].tree)
         #
         branch_to_track = branch
     elif commit_tree is not None:
-        log.info("Checking out commit %s", branch)
+        log.info("Checking out commit tree %s", branch)
         #
         head_filename = repository.refs.refpath(b"HEAD")
         head_file = file.GitFile(head_filename, "wb")
