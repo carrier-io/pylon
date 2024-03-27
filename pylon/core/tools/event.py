@@ -69,6 +69,7 @@ class EventManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local events only")
                 self.node = arbiter.MockEventNode()
+                self.node.start()
         elif events_redis:
             try:
                 self.node = arbiter.RedisEventNode(
@@ -86,6 +87,7 @@ class EventManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local events only")
                 self.node = arbiter.MockEventNode()
+                self.node.start()
         elif events_socketio:
             try:
                 self.node = arbiter.SocketIOEventNode(
@@ -102,8 +104,10 @@ class EventManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local events only")
                 self.node = arbiter.MockEventNode()
+                self.node.start()
         else:
             self.node = arbiter.MockEventNode()
+            self.node.start()
         #
         self.partials = dict()
 

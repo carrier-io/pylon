@@ -71,6 +71,7 @@ class RpcManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")
                 event_node = arbiter.MockEventNode()
+                event_node.start()
         elif rpc_redis:
             try:
                 event_node = arbiter.RedisEventNode(
@@ -88,6 +89,7 @@ class RpcManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")
                 event_node = arbiter.MockEventNode()
+                event_node.start()
         elif rpc_socketio:
             try:
                 event_node = arbiter.SocketIOEventNode(
@@ -104,8 +106,10 @@ class RpcManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")
                 event_node = arbiter.MockEventNode()
+                event_node.start()
         else:
             event_node = arbiter.MockEventNode()
+            event_node.start()
         #
         self.node = arbiter.RpcNode(
             event_node,
