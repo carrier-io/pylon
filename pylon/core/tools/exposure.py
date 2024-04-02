@@ -262,7 +262,11 @@ def on_request(sub_path):
     #
     exposure_id = None
     #
-    for reg_url_prefix, reg_exposure_id in context.exposure.registry.items():
+    for reg_url_prefix, reg_exposure_id in sorted(
+            context.exposure.registry.items(),
+            key=lambda item: len(item[0]),
+            reverse=True,
+    ):
         if source_uri.startswith(reg_url_prefix):
             exposure_id = reg_exposure_id
             break
