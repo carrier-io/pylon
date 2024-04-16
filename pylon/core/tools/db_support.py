@@ -35,6 +35,8 @@ def init(context):
     log.info("Initializing DB support")
     #
     context.db = Context()
+    context.pylon_db = Context()
+    #
 
 
 def deinit(context):

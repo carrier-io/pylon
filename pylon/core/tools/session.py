@@ -31,16 +31,18 @@ from pylon.core.tools import log
 
 def init_flask_sessions(context):
     """ Enable third-party server-side session storage """
-    redis_config = context.settings.get("sessions", dict()).get("redis", dict())
+    redis_config = context.settings.get("sessions", {}).get("redis", {})
     #
     if redis_config:
         session_store = RedisStore(
             StrictRedis(
                 host=redis_config.get("host", "localhost"),
+                port=redis_config.get("port", 6379),
                 password=redis_config.get("password", None),
+                ssl=redis_config.get("use_ssl", False),
             )
         )
-        session_prefix = context.settings.get("sessions", dict()).get("prefix", None)
+        session_prefix = context.settings.get("sessions", {}).get("prefix", None)
         if session_prefix:
             session_store = PrefixDecorator(session_prefix, session_store)
         log.info("Using redis for session storage")
