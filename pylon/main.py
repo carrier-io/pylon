@@ -51,6 +51,7 @@ import os
 import uuid
 import socket
 import signal
+import threading
 
 import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
@@ -58,6 +59,7 @@ import flask_restful  # pylint: disable=E0401
 from pylon.core.tools import log
 from pylon.core.tools import log_syslog
 from pylon.core.tools import log_loki
+from pylon.core.tools import db_support
 from pylon.core.tools import module
 from pylon.core.tools import event
 from pylon.core.tools import seed
@@ -80,7 +82,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     signal.signal(signal.SIGTERM, signal_sigterm)
     # Enable logging and say hello
     log.enable_logging()
-    log.info("Starting plugin-based Carrier core")
+    log.info("Starting plugin-based Carrier/Centry core")
     # Make context holder
     context = Context()
     # Save debug status
@@ -92,6 +94,15 @@ def main():  # pylint: disable=R0912,R0914,R0915
     if not context.settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
+    # Save reloader status
+    context.reloader_used = context.settings.get("server", {}).get(
+        "use_reloader",
+        env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+    )
+    context.before_reloader = \
+            context.debug and \
+            context.reloader_used and \
+            os.environ.get("WERKZEUG_RUN_MAIN", "false").lower() != "true"
     # Save global node name
     context.node_name = context.settings.get("server", {}).get("name", socket.gethostname())
     # Generate pylon ID
@@ -131,6 +142,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make API instance
     log.info("Creating API instance")
     context.api = flask_restful.Api(context.app, catch_all_404s=True)
+    # Initialize local data
+    context.local = threading.local()
+    # Initialize DB support
+    db_support.init(context)
     # Make SocketIO instance
     log.info("Creating SocketIO instance")
     context.sio = server.create_socketio_instance(context)
@@ -167,6 +182,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         traefik.unregister_traefik_route(context)
         # De-init modules
         context.module_manager.deinit_modules()
+        # De-initialize DB support
+        db_support.deinit(context)
     # Exit
     log.info("Exiting")
 
