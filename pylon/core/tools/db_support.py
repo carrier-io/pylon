@@ -20,8 +20,19 @@
     DB support tools
 """
 
+import time
+
+import sqlalchemy  # pylint: disable=E0401
+from sqlalchemy.orm import Session  # pylint: disable=E0401
+from sqlalchemy.schema import CreateSchema  # pylint: disable=E0401
+
 from pylon.core.tools import log
 from pylon.core.tools.context import Context
+
+
+#
+# API
+#
 
 
 def init(context):
@@ -34,11 +45,26 @@ def init(context):
     #
     log.info("Initializing DB support")
     #
-    context.db = Context()
-    context.pylon_db = Context()
+    # App DB
     #
     db_config = context.settings.get("db", {})
+    #
+    context.db = Context()
+    context.db.engine = make_engine(db_config)
+    context.db.make_session = make_session_fn(context.db)
+    #
+    # Pylon DB
+    #
     pylon_db_config = context.settings.get("pylon_db", {})
+    #
+    context.pylon_db = Context()
+    context.pylon_db.engine = make_engine(pylon_db_config)
+    context.pylon_db.make_session = make_session_fn(context.pylon_db)
+    #
+    # App hooks
+    #
+    context.app.before_request(db_before_request)
+    context.app.teardown_appcontext(db_teardown_appcontext)
 
 
 def deinit(context):
@@ -50,3 +76,153 @@ def deinit(context):
         return
     #
     log.info("De-initializing DB support")
+    #
+    # Pylon DB
+    #
+    try:
+        context.pylon_db.engine.dispose()
+    except:  # pylint: disable=W0702
+        pass
+    #
+    # App DB
+    #
+    try:
+        context.db.engine.dispose()
+    except:  # pylint: disable=W0702
+        pass
+
+
+#
+# Hooks
+#
+
+
+def db_before_request(*args, **kwargs):
+    """ Setup request DB session """
+    _ = args, kwargs
+    #
+    create_local_session()
+
+
+def db_teardown_appcontext(*args, **kwargs):
+    """ Close request DB session """
+    _ = args, kwargs
+    #
+    try:
+        close_local_session()
+    except:  # pylint: disable=W0702
+        pass  # "Teardown functions must avoid raising exceptions."
+
+
+#
+# Tools
+#
+
+
+def make_engine(
+        db_config,
+        mute_first_failed_connections=0,
+        connection_retry_interval=3.0,
+        max_failed_connections=None,
+        log_errors=True,
+):
+    """ Make Engine and try to connect """
+    #
+    db_engine_url = db_config.get("engine_url", "sqlite://")
+    db_engine_kwargs = db_config.get("engine_kwargs", {})
+    default_schema = None
+    #
+    if "default_schema" in db_config:
+        default_schema = db_config["default_schema"]
+        #
+        if "schema_translate_map" not in db_engine_kwargs:
+            db_engine_kwargs["schema_translate_map"] = {}
+        #
+        db_engine_kwargs["schema_translate_map"][None] = default_schema
+    #
+    engine = sqlalchemy.create_engine(
+        db_engine_url, **db_engine_kwargs,
+    )
+    #
+    failed_connections = 0
+    #
+    while True:
+        try:
+            connection = engine.connect()
+            connection.close()
+            #
+            break
+        except:  # pylint: disable=W0702
+            if log_errors and \
+                    failed_connections >= mute_first_failed_connections:
+                #
+                log.exception(
+                    "Failed to create DB connection. Retrying in %s seconds",
+                    connection_retry_interval,
+                )
+            #
+            failed_connections += 1
+            #
+            if max_failed_connections and failed_connections > max_failed_connections:
+                break
+            #
+            time.sleep(connection_retry_interval)
+    #
+    if default_schema is not None:
+        with engine.connect() as connection:
+            connection.execute(CreateSchema(default_schema, if_not_exists=True))
+            connection.commit()
+    #
+    return engine
+
+
+def make_session_fn(target_db):
+    """ Create make_session() """
+    _target_db = target_db
+    #
+    def _make_session(schema=...):
+        if schema is ...:
+            target_engine = _target_db.engine
+        else:
+            target_engine = _target_db.engine.execution_options(
+                schema_translate_map={
+                    None: schema,
+                },
+            )
+        #
+        return Session(
+            bind=target_engine,
+            expire_on_commit=False,
+        )
+    #
+    return _make_session
+
+
+def create_local_session():
+    """ Create and configure session, save in local """
+    from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
+    context.local.db_session = context.db.make_session()
+
+
+def close_local_session():
+    """ Finalize and close local session """
+    from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
+    if "session" not in context.local.__dict__:
+        return
+    #
+    session = context.local.db_session
+    #
+    if session is None:
+        return
+    #
+    try:
+        if session.is_active:
+            session.commit()
+        else:
+            session.rollback()
+    finally:
+        session.close()
+        #
+        context.local.db_session = None

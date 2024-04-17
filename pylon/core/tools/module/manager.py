@@ -35,6 +35,7 @@ from pylon.core.tools import (
     process,
     dependency,
     env,
+    db_support,
 )
 
 from .proxy import (
@@ -335,7 +336,13 @@ class ModuleManager:
                     descriptor=module_descriptor,
                 )
                 module_descriptor.module = module_obj
-                module_obj.init()
+                #
+                db_support.create_local_session()
+                try:
+                    module_obj.init()
+                finally:
+                    db_support.close_local_session()
+                #
             except:  # pylint: disable=W0702
                 log.exception("Failed to enable module: %s", module_descriptor.name)
                 continue
@@ -357,7 +364,11 @@ class ModuleManager:
         #
         for module_name in reversed(list(self.modules)):
             try:
-                self.modules[module_name].module.deinit()
+                db_support.create_local_session()
+                try:
+                    self.modules[module_name].module.deinit()
+                finally:
+                    db_support.close_local_session()
             except:  # pylint: disable=W0702
                 pass
         #

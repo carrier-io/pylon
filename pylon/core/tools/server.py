@@ -35,6 +35,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 from pylon.core import constants
 from pylon.core.tools import log
 from pylon.core.tools import env
+from pylon.core.tools import db_support
 
 
 def add_url_prefix(context):
@@ -344,13 +345,17 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
 
     def _trigger_event(self, event, namespace, *args):
         """ Call *any* handlers first """
-        for any_handler in self._pylon_any_handlers:
-            try:
-                any_handler(event, namespace, args)
-            except:  # pylint: disable=W0702
-                log.exception("Failed to run SIO *any* handler, skipping")
-        #
-        return super()._trigger_event(event, namespace, *args)
+        db_support.create_local_session()
+        try:
+            for any_handler in self._pylon_any_handlers:
+                try:
+                    any_handler(event, namespace, args)
+                except:  # pylint: disable=W0702
+                    log.exception("Failed to run SIO *any* handler, skipping")
+            #
+            return super()._trigger_event(event, namespace, *args)
+        finally:
+            db_support.close_local_session()
 
     def pylon_trigger_event(self, event, namespace, *args):
         """ Call original handlers """
@@ -383,16 +388,20 @@ class SIOPatchedAsyncServer(socketio.AsyncServer):  # pylint: disable=R0903
         """ Call *any* handlers first """
         import asyncio  # pylint: disable=E0401,C0412,C0415
         #
-        for any_handler in self.pylon_any_handlers:
-            try:
-                if asyncio.iscoroutinefunction(any_handler):
-                    await any_handler(event, namespace, args)
-                else:
-                    any_handler(event, namespace, args)
-            except:  # pylint: disable=W0702
-                log.exception("Failed to run SIO *any* handler, skipping")
-        #
-        return await super()._trigger_event(event, namespace, *args)
+        db_support.create_local_session()
+        try:
+            for any_handler in self.pylon_any_handlers:
+                try:
+                    if asyncio.iscoroutinefunction(any_handler):
+                        await any_handler(event, namespace, args)
+                    else:
+                        any_handler(event, namespace, args)
+                except:  # pylint: disable=W0702
+                    log.exception("Failed to run SIO *any* handler, skipping")
+            #
+            return await super()._trigger_event(event, namespace, *args)
+        finally:
+            db_support.close_local_session()
 
     async def pylon_trigger_event(self, event, namespace, *args):
         """ Call original handlers """
