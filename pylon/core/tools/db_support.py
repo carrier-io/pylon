@@ -135,10 +135,15 @@ def make_engine(
     if "default_schema" in db_config:
         default_schema = db_config["default_schema"]
         #
-        if "schema_translate_map" not in db_engine_kwargs:
-            db_engine_kwargs["schema_translate_map"] = {}
+        if "execution_options" not in db_engine_kwargs:
+            db_engine_kwargs["execution_options"] = {}
         #
-        db_engine_kwargs["schema_translate_map"][None] = default_schema
+        execution_options = db_engine_kwargs["execution_options"]
+        #
+        if "schema_translate_map" not in execution_options:
+            execution_options["schema_translate_map"] = {}
+        #
+        execution_options["schema_translate_map"][None] = default_schema
     #
     engine = sqlalchemy.create_engine(
         db_engine_url, **db_engine_kwargs,
@@ -180,14 +185,19 @@ def make_session_fn(target_db):
     """ Create make_session() """
     _target_db = target_db
     #
-    def _make_session(schema=...):
+    def _make_session(schema=..., source_schema=None):
         if schema is ...:
             target_engine = _target_db.engine
         else:
+            execution_options = dict(_target_db.engine.get_execution_options())
+            #
+            if "schema_translate_map" not in execution_options:
+                execution_options["schema_translate_map"] = {}
+            #
+            execution_options["schema_translate_map"][source_schema] = schema
+            #
             target_engine = _target_db.engine.execution_options(
-                schema_translate_map={
-                    None: schema,
-                },
+                **execution_options,
             )
         #
         return Session(
