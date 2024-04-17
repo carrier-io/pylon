@@ -68,7 +68,9 @@ def register_traefik_route(context):
     #
     store = StrictRedis(
         host=redis_config.get("host", "localhost"),
+        port=redis_config.get("port", 6379),
         password=redis_config.get("password", None),
+        ssl=redis_config.get("use_ssl", False),
     )
     #
     traefik_rootkey = traefik_config.get("rootkey", "traefik")
@@ -151,7 +153,9 @@ def unregister_traefik_route(context):
     #
     store = StrictRedis(
         host=redis_config.get("host", "localhost"),
+        port=redis_config.get("port", 6379),
         password=redis_config.get("password", None),
+        ssl=redis_config.get("use_ssl", False),
     )
     #
     while context.traefik_redis_keys:

@@ -37,6 +37,8 @@ def init(context):
     context.db = Context()
     context.pylon_db = Context()
     #
+    db_config = context.settings.get("db", {})
+    pylon_db_config = context.settings.get("pylon_db", {})
 
 
 def deinit(context):
