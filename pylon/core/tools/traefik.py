@@ -34,11 +34,7 @@ def register_traefik_route(context):
     """ Create Traefik route for this Pylon instance """
     context.traefik_redis_keys = list()
     #
-    reloader_used = context.settings.get("server", dict()).get(
-        "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
-    )
-    #
-    if context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    if context.before_reloader:
         log.info("Running in development mode before reloader is started. Skipping registration")
         return
     #
@@ -131,11 +127,7 @@ def register_traefik_route(context):
 def unregister_traefik_route(context):
     """ Delete Traefik route for this Pylon instance """
     #
-    reloader_used = context.settings.get("server", dict()).get(
-        "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
-    )
-    #
-    if context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    if context.before_reloader:
         log.info("Running in development mode before reloader is started. Skipping unregistration")
         return
     #
