@@ -23,7 +23,10 @@
 import time
 
 import sqlalchemy  # pylint: disable=E0401
-from sqlalchemy.orm import Session  # pylint: disable=E0401
+from sqlalchemy.orm import (  # pylint: disable=E0401
+    Session,
+    declarative_base,
+)
 from sqlalchemy.schema import CreateSchema  # pylint: disable=E0401
 
 from pylon.core.tools import log
@@ -60,6 +63,8 @@ def init(context):
     context.pylon_db = Context()
     context.pylon_db.engine = make_engine(pylon_db_config)
     context.pylon_db.make_session = make_session_fn(context.pylon_db)
+    context.pylon_db.metadata = sqlalchemy.MetaData()
+    context.pylon_db.Base = declarative_base()
     #
     # App hooks
     #
