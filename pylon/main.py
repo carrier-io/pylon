@@ -75,6 +75,8 @@ from pylon.core.tools import exposure
 from pylon.core.tools.signal import signal_sigterm
 from pylon.core.tools.context import Context
 
+from pylon.framework import toolkit
+
 
 def main():  # pylint: disable=R0912,R0914,R0915
     """ Entry point """
@@ -164,6 +166,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.slot_manager = slot.SlotManager(context)
     # Apply patches needed for pure-python git and providers
     git.apply_patches()
+    # Init framework toolkit
+    toolkit.init(context)
     # Load and initialize modules
     context.module_manager.init_modules()
     context.event_manager.fire_event("pylon_modules_initialized", context.id)

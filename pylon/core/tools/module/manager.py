@@ -47,7 +47,6 @@ from .loader import (
     DataModuleProvider,
 )
 from .descriptor import ModuleDescriptor
-from .this import This
 
 
 class ModuleManager:
@@ -72,14 +71,6 @@ class ModuleManager:
         if "plugins" not in sys.modules:
             sys.modules["plugins"] = types.ModuleType("plugins")
             sys.modules["plugins"].__path__ = []
-        # Make tools holder
-        if "tools" not in sys.modules:
-            sys.modules["tools"] = types.ModuleType("tools")
-            sys.modules["tools"].__path__ = []
-        # Register context as a tool
-        setattr(sys.modules["tools"], "context", self.context)
-        # Register module helpers as a tool
-        setattr(sys.modules["tools"], "this", This(self.context))
         # Check if actions are needed
         reloader_used = self.context.settings.get("server", {}).get(
             "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
