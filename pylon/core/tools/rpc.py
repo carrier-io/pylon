@@ -154,6 +154,6 @@ def invoke_function(function, *args, **kwargs):
     """ Run function """
     db_support.create_local_session()
     try:
-        function(*args, **kwargs)
+        return function(*args, **kwargs)
     finally:
         db_support.close_local_session()

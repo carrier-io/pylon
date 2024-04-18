@@ -53,6 +53,7 @@ def init(context):
     db_config = context.settings.get("db", {})
     #
     context.db = Context()
+    context.db.url = get_db_url(db_config)
     context.db.engine = make_engine(db_config)
     context.db.make_session = make_session_fn(context.db)
     #
@@ -61,6 +62,7 @@ def init(context):
     pylon_db_config = context.settings.get("pylon_db", {})
     #
     context.pylon_db = Context()
+    context.pylon_db.url = get_db_url(pylon_db_config)
     context.pylon_db.engine = make_engine(pylon_db_config)
     context.pylon_db.make_session = make_session_fn(context.pylon_db)
     context.pylon_db.metadata = sqlalchemy.MetaData()
@@ -124,6 +126,11 @@ def db_teardown_appcontext(*args, **kwargs):
 #
 
 
+def get_db_url(db_config):
+    """ Get URL """
+    return db_config.get("engine_url", "sqlite://")
+
+
 def make_engine(
         db_config,
         mute_first_failed_connections=0,
@@ -133,7 +140,7 @@ def make_engine(
 ):
     """ Make Engine and try to connect """
     #
-    db_engine_url = db_config.get("engine_url", "sqlite://")
+    db_engine_url = get_db_url(db_config)
     db_engine_kwargs = db_config.get("engine_kwargs", {})
     default_schema = None
     #
@@ -241,3 +248,14 @@ def close_local_session():
         session.close()
         #
         context.local.db_session = None
+
+
+def make_module_entities(context, module_name):
+    """ Make module-specific entities """
+    _ = context, module_name
+    result = Context()
+    #
+    result.metadata = sqlalchemy.MetaData()
+    result.Base = declarative_base()
+    #
+    return result

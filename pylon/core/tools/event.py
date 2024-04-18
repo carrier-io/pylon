@@ -133,6 +133,6 @@ def invoke_listener(listener, context, *args, **kwargs):
     """ Run listener """
     db_support.create_local_session()
     try:
-        listener(context, *args, **kwargs)
+        return listener(context, *args, **kwargs)
     finally:
         db_support.close_local_session()
