@@ -66,7 +66,9 @@ def init(context):
     context.pylon_db.engine = make_engine(pylon_db_config)
     context.pylon_db.make_session = make_session_fn(context.pylon_db)
     context.pylon_db.metadata = sqlalchemy.MetaData()
-    context.pylon_db.Base = declarative_base()
+    context.pylon_db.Base = declarative_base(
+        metadata=context.pylon_db.metadata,
+    )
     #
     # App hooks
     #
