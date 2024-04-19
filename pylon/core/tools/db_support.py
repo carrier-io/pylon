@@ -258,6 +258,8 @@ def make_module_entities(context, module_name):
     result = Context()
     #
     result.metadata = sqlalchemy.MetaData()
-    result.Base = declarative_base()
+    result.Base = declarative_base(
+        metadata=result.metadata,
+    )
     #
     return result
