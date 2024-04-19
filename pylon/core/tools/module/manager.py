@@ -72,7 +72,7 @@ class ModuleManager:
             sys.modules["plugins"] = types.ModuleType("plugins")
             sys.modules["plugins"].__path__ = []
         # Check if actions are needed
-        if context.before_reloader:
+        if self.context.before_reloader:
             log.info(
                 "Running in development mode before reloader is started. Skipping module loading"
             )
@@ -342,7 +342,7 @@ class ModuleManager:
 
     def deinit_modules(self):
         """ De-init and unload modules """
-        if context.before_reloader:
+        if self.context.before_reloader:
             log.info(
                 "Running in development mode before reloader is started. Skipping module unloading"
             )
