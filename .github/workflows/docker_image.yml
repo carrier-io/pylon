@@ -33,7 +33,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
@@ -41,7 +40,6 @@ jobs:
           tags: ${{ inputs.docker_tag }}
           builder: ${{ steps.buildx.outputs.name }}
           platforms: linux/amd64,linux/arm64
-          
       - name: Build and push Alpine
         uses: docker/build-push-action@v4
         with:

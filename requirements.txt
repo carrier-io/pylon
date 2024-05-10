@@ -17,7 +17,7 @@ Flask-KVSession==0.6.2
 Flask-RESTful==0.3.9
 gevent==22.10.2
 gevent-websocket==0.10.1
-greenlet==2.0.0.post0
+greenlet==3.0.3
 h11==0.13.0
 hvac==1.1.1
 idna==2.10
