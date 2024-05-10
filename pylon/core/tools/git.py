@@ -25,8 +25,8 @@ import os
 import shutil
 import getpass
 
-import dulwich
-from dulwich import refs, repo, porcelain, client  # pylint: disable=E0401
+import dulwich  # pylint: disable=E0401
+from dulwich import refs, repo, porcelain, client, file  # pylint: disable=E0401
 from dulwich.contrib.paramiko_vendor import ParamikoSSHVendor  # pylint: disable=E0401
 
 import paramiko  # pylint: disable=E0401
@@ -75,26 +75,34 @@ def patched_paramiko_transport_verify_key(self, host_key, sig):  # pylint: disab
 
 
 def patched_paramiko_client_SSHClient_init(original_init):  # pylint: disable=C0103
+    """ Allow to use SSH host keys from some env var """
     def patched_init(self, *args, **kwargs):
         retval = original_init(self, *args, **kwargs)
-
+        #
         ssl_cert_file = os.environ.get("SSL_CERT_FILE")
         if ssl_cert_file:
             self.load_system_host_keys(filename=ssl_cert_file)
-
+        #
         return retval
-
+    #
     return patched_init
 
 
 def patched_dulwich_client_HttpGitClient_from_parsedurl(original_from_parsedurl):  # pylint: disable=C0103
+    """ Allow to set CA info from some env var """
     def patched_from_parsedurl(self, *args, config=None, **kwargs):
         ssl_cert_file = os.environ.get("SSL_CERT_FILE")
         if ssl_cert_file and config:
-            config.set(b"http", b"sslCAInfo", ssl_cert_file)
-
+            try:
+                config.set(b"http", b"sslCAInfo", ssl_cert_file)
+            except:  # pylint: disable=W0702
+                from dulwich.config import ConfigDict  # pylint: disable=E0401,C0415
+                ssl_config = ConfigDict()
+                ssl_config.set(b"http", b"sslCAInfo", ssl_cert_file)
+                config.backends.insert(0, ssl_config)
+        #
         return original_from_parsedurl(self, *args, config=config, **kwargs)
-
+    #
     return patched_from_parsedurl
 
 
@@ -129,7 +137,7 @@ def patched_paramiko_client_SSHClient_auth(original_auth):  # pylint: disable=C0
     return patched_function
 
 
-def clone(  # pylint: disable=R0913,R0912,R0914
+def clone(  # pylint: disable=R0913,R0912,R0914,R0915
         source, target, branch="main", depth=None, delete_git_dir=False,
         username=None, password=None, key_filename=None, key_data=None,
         track_branch_upstream=True,
@@ -165,6 +173,11 @@ def clone(  # pylint: disable=R0913,R0912,R0914
         target_tree = repository[b"refs/remotes/origin/" + branch_b]
     except:  # pylint: disable=W0702
         target_tree = None
+    # Get commit tree (if branch is a SHA1)
+    try:
+        commit_tree = repository[branch_b]
+    except:  # pylint: disable=W0702
+        commit_tree = None
     # Checkout branch
     branch_to_track = None
     if target_tree is not None:
@@ -174,6 +187,20 @@ def clone(  # pylint: disable=R0913,R0912,R0914
         repository.reset_index(repository[b"HEAD"].tree)
         #
         branch_to_track = branch
+    elif commit_tree is not None:
+        log.info("Checking out commit %s", branch)
+        #
+        head_filename = repository.refs.refpath(b"HEAD")
+        head_file = file.GitFile(head_filename, "wb")
+        try:
+            head_file.write(branch_b + b"\n")
+        except:  # pylint: disable=W0702
+            log.exception("Failed to set detached HEAD")
+            head_file.abort()
+        else:
+            head_file.close()
+        #
+        repository.reset_index(commit_tree.tree)
     elif head_tree is not None:
         try:
             default_branch_name = repository.refs.follow(b"HEAD")[0][1]

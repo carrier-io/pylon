@@ -29,8 +29,12 @@ import zipfile
 import tempfile
 import functools
 import posixpath
-import importlib
 import subprocess
+import importlib
+from importlib.abc import MetaPathFinder, ResourceReader
+from importlib.machinery import ModuleSpec, PathFinder
+from importlib.util import spec_from_file_location
+
 import pkg_resources
 
 import yaml  # pylint: disable=E0401
@@ -41,6 +45,7 @@ from pylon.core.tools import log
 from pylon.core.tools import web
 from pylon.core.tools import process
 from pylon.core.tools import dependency
+from pylon.core.tools import env
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.config import config_substitution, vault_secrets
 
@@ -76,6 +81,8 @@ class ModuleDescriptor:  # pylint: disable=R0902
         self.requirements_path = None
         #
         self.module = None
+        self.prepared = False
+        self.activated = False
 
     def load_config(self):
         """ Load custom (or default) configuration """
@@ -298,9 +305,9 @@ class ModuleDescriptor:  # pylint: disable=R0902
 
     def init_rpcs(self, module_rpcs=True):
         """ Register all decorated RPCs from this module """
+        module_name = self.name
         if self.loader.has_directory("rpc"):
             module_pkg = self.loader.module_name
-            module_name = self.name
             #
             for rpc_resource in importlib.resources.contents(
                     f"{module_pkg}.rpc"
@@ -323,12 +330,25 @@ class ModuleDescriptor:  # pylint: disable=R0902
                     )
                     continue
         #
-        rpcs = web.rpcs_registry.pop(f"plugins.{self.name}", list())
+        rpcs = web.rpcs_registry.pop(f"plugins.{module_name}", list())
         for rpc in rpcs:
-            name, proxy_name, obj = rpc
+            name, proxy_name, auto_names, obj = rpc
             if module_rpcs:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
+            #
+            if auto_names and name is None and proxy_name is None:
+                try:
+                    callable_name = self._get_callable_name(obj)
+                    #
+                    proxy_name = callable_name
+                    name = f"{module_name}_{callable_name}"
+                    #
+                    log.debug("Set RPC name to: %s", name)
+                    log.debug("Set RPC proxy name to: %s", proxy_name)
+                except:  # pylint: disable=W0702
+                    log.exception("Failed to get callable name for: %s", obj)
+            #
             self.context.rpc_manager.register_function(obj, name)
             #
             if proxy_name is not None and name is not None:
@@ -339,6 +359,13 @@ class ModuleDescriptor:  # pylint: disable=R0902
                     self.module, proxy_name,
                     getattr(self.context.rpc_manager.call, name)
                 )
+
+    def _get_callable_name(self, func):
+        if hasattr(func, "__name__"):
+            return func.__name__
+        if isinstance(func, functools.partial):
+            return self._get_callable_name(func.func)
+        raise ValueError("Cannot guess callable name")
 
     def init_sio(self, module_sios=True):
         """ Register all decorated SIO event listeners from this module """
@@ -531,7 +558,11 @@ class ModuleManager:
 
     def init_modules(self):
         """ Load and init modules """
-        if self.context.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        reloader_used = self.context.settings.get("server", dict()).get(
+            "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+        )
+        #
+        if self.context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             log.info(
                 "Running in development mode before reloader is started. Skipping module loading"
             )
@@ -566,11 +597,12 @@ class ModuleManager:
             preload_module_meta_map, preload_module_order,
         )
         # Install/get/activate requirements and initialize preload modules
-        preloaded_items = self._activate_modules(preload_module_descriptors)
+        preloaded_items = self._prepare_modules(preload_module_descriptors)
+        self._activate_modules(preload_module_descriptors)
         #
         # Target
         #
-        log.info("Initializing modules")
+        log.info("Preparing modules")
         # Create loaders for target modules
         target_module_meta_map = self._make_target_module_meta_map()
         # Resolve target module load order
@@ -581,8 +613,11 @@ class ModuleManager:
         target_module_descriptors = self._make_descriptors(
             target_module_meta_map, target_module_order,
         )
-        # Install/get/activate requirements and initialize target modules
-        self._activate_modules(target_module_descriptors, preloaded_items)
+        # Install/get requirements
+        self._prepare_modules(target_module_descriptors, preloaded_items)
+        # Activate and init modules
+        log.info("Activating modules")
+        self._activate_modules(target_module_descriptors)
 
     def _make_preload_module_meta_map(self):
         module_meta_map = dict()  # module_name -> (metadata, loader)
@@ -674,30 +709,17 @@ class ModuleManager:
         #
         return module_descriptors
 
-    def _activate_modules(self, module_descriptors, activated_items=None):  # pylint: disable=R0914,R0915
-        if activated_items is None:
+    def _prepare_modules(self, module_descriptors, prepared_items=None):  # pylint: disable=R0914,R0915
+        if prepared_items is None:
             cache_hash_chunks = list()
             module_site_paths = list()
             module_constraint_paths = list()
         else:
-            cache_hash_chunks, module_site_paths, module_constraint_paths = activated_items
+            cache_hash_chunks, module_site_paths, module_constraint_paths = prepared_items
         #
         for module_descriptor in module_descriptors:
-            if module_descriptor.name in self.settings.get('skip', []):
-                log.warning('Skipping module init %s', module_descriptor.name)
-                continue
-            all_required_dependencies_present = True
-            #
-            for required_dependency in module_descriptor.metadata.get("depends_on", list()):
-                if required_dependency not in self.modules:
-                    log.error(
-                        "Required dependency is not present: %s (required by %s)",
-                        required_dependency, module_descriptor.name,
-                    )
-                    all_required_dependencies_present = False
-            #
-            if not all_required_dependencies_present:
-                log.error("Skipping module: %s", module_descriptor.name)
+            if module_descriptor.name in self.settings.get("skip", []):
+                log.warning("Skipping module prepare: %s", module_descriptor.name)
                 continue
             #
             requirements_hash = hashlib.sha256(module_descriptor.requirements.encode()).hexdigest()
@@ -762,7 +784,40 @@ class ModuleManager:
                 #
                 module_constraint_paths.append(frozen_requirements)
             #
-            self.activate_path(module_descriptor.requirements_path)
+            module_descriptor.prepared = True
+        #
+        return cache_hash_chunks, module_site_paths, module_constraint_paths
+
+    def _activate_modules(self, module_descriptors):  # pylint: disable=R0914,R0915
+        requirements_activation = self.settings["requirements"].get("activation", "steps")
+        #
+        if requirements_activation == "bulk":
+            log.info("Using bulk module requirements activation mode")
+            for module_descriptor in module_descriptors:
+                if module_descriptor.prepared:
+                    self.activate_path(module_descriptor.requirements_path)
+        #
+        for module_descriptor in module_descriptors:
+            if not module_descriptor.prepared:
+                log.warning("Skipping un-prepared module: %s", module_descriptor.name)
+            #
+            all_required_dependencies_present = True
+            #
+            for required_dependency in module_descriptor.metadata.get("depends_on", list()):
+                if required_dependency not in self.modules:
+                    log.error(
+                        "Required dependency is not present: %s (required by %s)",
+                        required_dependency, module_descriptor.name,
+                    )
+                    all_required_dependencies_present = False
+            #
+            if not all_required_dependencies_present:
+                log.error("Skipping module: %s", module_descriptor.name)
+                continue
+            #
+            if requirements_activation != "bulk":
+                self.activate_path(module_descriptor.requirements_path)
+            #
             self.activate_loader(module_descriptor.loader)
             #
             try:
@@ -778,12 +833,15 @@ class ModuleManager:
                 continue
             #
             self.modules[module_descriptor.name] = module_descriptor
-        #
-        return cache_hash_chunks, module_site_paths, module_constraint_paths
+            module_descriptor.activated = True
 
     def deinit_modules(self):
         """ De-init and unload modules """
-        if self.context.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        reloader_used = self.context.settings.get("server", dict()).get(
+            "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+        )
+        #
+        if self.context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             log.info(
                 "Running in development mode before reloader is started. Skipping module unloading"
             )
@@ -882,6 +940,8 @@ class ModuleManager:
                 sys.executable,
                 "-m", "pip", "install",
                 "--user", "--no-warn-script-location",
+                "--disable-pip-version-check",
+                "--root-user-action=ignore",
             ] + c_args + [
                 "-r", requirements_path,
             ],
@@ -905,7 +965,12 @@ class ModuleManager:
             opt_args.append(requirements_path)
         #
         return subprocess.check_output(
-            [sys.executable, "-m", "pip", "freeze", "--user"] + opt_args,
+            [
+                sys.executable,
+                "-m", "pip", "freeze",
+                "--user",
+                "--disable-pip-version-check",
+            ] + opt_args,
             env=env,
         ).decode()
 
@@ -930,7 +995,7 @@ class ModuleDescriptorProxy:  # pylint: disable=R0903
         return self.__module_manager.modules[name]
 
 
-class LocalModuleLoader(importlib.machinery.PathFinder):
+class LocalModuleLoader(PathFinder):
     """ Allows to load modules from specific location """
 
     def __init__(self, module_name, module_path):
@@ -964,7 +1029,7 @@ class LocalModuleLoader(importlib.machinery.PathFinder):
         if filename is None:
             return None
         #
-        return importlib.util.spec_from_file_location(fullname, filename)
+        return spec_from_file_location(fullname, filename)
 
     def get_data(self, path):
         """ Read data resource """
@@ -992,7 +1057,7 @@ class LocalModuleLoader(importlib.machinery.PathFinder):
         return self
 
 
-class DataModuleLoader(importlib.abc.MetaPathFinder):
+class DataModuleLoader(MetaPathFinder):
     """ Allows to load modules from ZIP in-memory data """
 
     def __init__(self, module_name, module_data):
@@ -1026,7 +1091,7 @@ class DataModuleLoader(importlib.abc.MetaPathFinder):
         if filename is None:
             return None
         #
-        return importlib.machinery.ModuleSpec(
+        return ModuleSpec(
             fullname, self, origin=filename, is_package=is_package
         )
 
@@ -1143,7 +1208,7 @@ class DataModuleProvider(pkg_resources.NullProvider):  # pylint: disable=W0223
         return files + dirs
 
 
-class DataModuleResourceReader(importlib.abc.ResourceReader):
+class DataModuleResourceReader(ResourceReader):
     """ Allows to read resources from ZIP in-memory data """
 
     def __init__(self, loader, path):

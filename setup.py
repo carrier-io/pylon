@@ -19,7 +19,7 @@ with open('requirements.txt') as f:
 
 setup(
     name='pylon',
-    version='1.1.0',
+    version='1.1.1',
     description='Core for plugin based Flask applications',
     long_description='Lightweight distributed task queue',
     url='https://getcarrier.io',

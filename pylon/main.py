@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # coding=utf-8
-# pylint: disable=C0411,C0413
+# pylint: disable=C0411,C0412,C0413
 
 #   Copyright 2020-2021 getcarrier.io
 #
@@ -24,13 +24,14 @@
 # Before all other imports and code: patch standard library and other libraries to use async I/O
 #
 
-import os
+from pylon.core.tools import env
 
-CORE_DEVELOPMENT_MODE = os.environ.get("CORE_DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
+CORE_DEVELOPMENT_MODE = env.get_var("DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
+CORE_WEB_RUNTIME = env.get_var("WEB_RUNTIME", "flask")
 
-if not CORE_DEVELOPMENT_MODE:
+if not CORE_DEVELOPMENT_MODE and CORE_WEB_RUNTIME == "gevent":
     import gevent.monkey  # pylint: disable=E0401
-    gevent.monkey.patch_all(thread=False, subprocess=False)
+    gevent.monkey.patch_all()
     #
     import psycogreen.gevent  # pylint: disable=E0401
     psycogreen.gevent.patch_psycopg()
@@ -39,6 +40,7 @@ if not CORE_DEVELOPMENT_MODE:
 # Normal imports and code below
 #
 
+import os
 import socket
 import signal
 
@@ -46,12 +48,14 @@ import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
 
 from pylon.core.tools import log
+from pylon.core.tools import log_syslog
 from pylon.core.tools import log_loki
 from pylon.core.tools import module
 from pylon.core.tools import event
 from pylon.core.tools import seed
 from pylon.core.tools import git
 from pylon.core.tools import rpc
+from pylon.core.tools import ssl
 from pylon.core.tools import slot
 from pylon.core.tools import server
 from pylon.core.tools import session
@@ -72,19 +76,30 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context = Context()
     # Save debug status
     context.debug = CORE_DEVELOPMENT_MODE
+    context.web_runtime = CORE_WEB_RUNTIME
     # Load settings from seed
     log.info("Loading and parsing settings")
     context.settings = seed.load_settings()
     if not context.settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
+    # Set environment overrides (e.g. to add env var with data from vault)
+    log.info("Setting environment overrides")
+    for key, value in context.settings.get("environment", dict()).items():
+        os.environ[key] = value
     # Save global node name
     context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
+    # Prepare SSL custom cert bundle
+    ssl.init(context)
+    # Enable SysLog logging if requested in config
+    log_syslog.enable_syslog_logging(context)
     # Enable Loki logging if requested in config
     log_loki.enable_loki_logging(context)
     # Make ModuleManager instance
+    log.info("Creating ModuleManager instance")
     context.module_manager = module.ModuleManager(context)
     # Make EventManager instance
+    log.info("Creating EventManager instance")
     context.event_manager = event.EventManager(context)
     # Add global URL prefix to context
     server.add_url_prefix(context)
@@ -105,8 +120,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Enable server-side sessions
     session.init_flask_sessions(context)
     # Make RpcManager instance
+    log.info("Creating RpcManager instance")
     context.rpc_manager = rpc.RpcManager(context)
     # Make SlotManager instance
+    log.info("Creating SlotManager instance")
     context.slot_manager = slot.SlotManager(context)
     # Apply patches needed for pure-python git and providers
     git.apply_patches()

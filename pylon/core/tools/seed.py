@@ -26,13 +26,14 @@ import importlib
 import yaml  # pylint: disable=E0401
 
 from pylon.core.tools import log
+from pylon.core.tools import env
 from pylon.core.tools import config
 
 
 def load_settings():
     """ Load settings from seed from env """
     settings_data = None
-    settings_seed = os.environ.get("CORE_CONFIG_SEED", None)
+    settings_seed = env.get_var("CONFIG_SEED", None)
     #
     if not settings_seed or ":" not in settings_seed:
         return None

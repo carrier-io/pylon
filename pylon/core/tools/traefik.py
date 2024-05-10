@@ -27,13 +27,18 @@ from redis import StrictRedis  # pylint: disable=E0401
 
 from pylon.core import constants
 from pylon.core.tools import log
+from pylon.core.tools import env
 
 
 def register_traefik_route(context):
     """ Create Traefik route for this Pylon instance """
     context.traefik_redis_keys = list()
     #
-    if context.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    reloader_used = context.settings.get("server", dict()).get(
+        "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+    )
+    #
+    if context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         log.info("Running in development mode before reloader is started. Skipping registration")
         return
     #
@@ -124,7 +129,11 @@ def register_traefik_route(context):
 def unregister_traefik_route(context):
     """ Delete Traefik route for this Pylon instance """
     #
-    if context.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    reloader_used = context.settings.get("server", dict()).get(
+        "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+    )
+    #
+    if context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         log.info("Running in development mode before reloader is started. Skipping unregistration")
         return
     #

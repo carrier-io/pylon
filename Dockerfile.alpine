@@ -1,0 +1,15 @@
+FROM --platform=$TARGETPLATFORM python:3.10-alpine
+WORKDIR /usr/src/app
+
+COPY ./ ./pylon
+RUN set -x \
+  && apk add bash vim alpine-sdk git libpq-dev libffi-dev \
+  && pip install --upgrade pip \
+  && pip install --no-cache-dir ./pylon \
+  && rm -r ./pylon
+
+RUN set -x \
+  && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
+  && update-ca-certificates
+
+CMD [ "python", "-m", "pylon.main" ]

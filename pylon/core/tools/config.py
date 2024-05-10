@@ -61,11 +61,11 @@ def vault_secrets(settings):
     if "auth_token" in config:
         client.token = config["auth_token"]
     if "auth_username" in config:
-        client.auth_userpass(
+        client.auth.userpass.login(
             config.get("auth_username"), config.get("auth_password", "")
         )
     if "auth_role_id" in config:
-        client.auth_approle(
+        client.auth.approle.login(
             config.get("auth_role_id"), config.get("auth_secret_id", "")
         )
     if not client.is_authenticated():
