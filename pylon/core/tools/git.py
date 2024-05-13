@@ -168,21 +168,26 @@ def clone(  # pylint: disable=R0913,R0912,R0914,R0915
     except:  # pylint: disable=W0702
         head_tree = None
     # Get target tree (requested branch)
+    target_type = "unknown"
+    #
     branch_b = branch.encode("utf-8")
     try:
         target_tree = repository[b"refs/remotes/origin/" + branch_b]
+        target_type = "branch"
         log.info("Found target: branch")
     except:  # pylint: disable=W0702
         target_tree = None
     # Get commit tree (if branch is a SHA1)
     try:
         commit_tree = repository[branch_b]
+        target_type = "commit"
         log.info("Found target: commit")
     except:  # pylint: disable=W0702
         # Get tag
         try:
             tag_obj = repository[b"refs/tags/" + branch_b]
             commit_tree = repository[tag_obj.object[1]]
+            target_type = "tag"
             log.info("Found target: tag")
         except:  # pylint: disable=W0702
             commit_tree = None
@@ -198,15 +203,18 @@ def clone(  # pylint: disable=R0913,R0912,R0914,R0915
     elif commit_tree is not None:
         log.info("Checking out commit tree %s", branch)
         #
-        head_filename = repository.refs.refpath(b"HEAD")
-        head_file = file.GitFile(head_filename, "wb")
-        try:
-            head_file.write(branch_b + b"\n")
-        except:  # pylint: disable=W0702
-            log.exception("Failed to set detached HEAD")
-            head_file.abort()
-        else:
-            head_file.close()
+        if target_type == "commit":
+            head_filename = repository.refs.refpath(b"HEAD")
+            head_file = file.GitFile(head_filename, "wb")
+            try:
+                head_file.write(branch_b + b"\n")
+            except:  # pylint: disable=W0702
+                log.exception("Failed to set detached HEAD")
+                head_file.abort()
+            else:
+                head_file.close()
+        elif target_type == "tag":
+            repository.refs.set_symbolic_ref(b"HEAD", b"refs/tags/" + branch_b)
         #
         repository.reset_index(commit_tree.tree)
     elif head_tree is not None:
