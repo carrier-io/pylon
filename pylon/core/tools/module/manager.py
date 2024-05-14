@@ -49,14 +49,15 @@ from .loader import (
 from .descriptor import ModuleDescriptor
 
 
-class ModuleManager:
+class ModuleManager:  # pylint: disable=R0902
     """ Manages modules """
 
     def __init__(self, context):
         self.context = context
         self.settings = self.context.settings.get("modules", {})
         self.providers = {}  # object_type -> provider_instance
-        self.modules = {}  # module_name -> module_descriptor
+        self.descriptors = {}  # module_name -> module_descriptor (all)
+        self.modules = {}  # module_name -> module_descriptor (enabled)
         self.temporary_objects = []
         #
         self.descriptor = ModuleDescriptorProxy(self)
@@ -203,6 +204,7 @@ class ModuleManager:
             module_descriptor.load_config()
             #
             module_descriptors.append(module_descriptor)
+            self.descriptors[module_name] = module_descriptor
         #
         return module_descriptors
 
