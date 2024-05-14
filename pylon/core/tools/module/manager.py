@@ -21,6 +21,7 @@
 import os
 import sys
 import json
+import time
 import types
 import shutil
 import hashlib
@@ -134,20 +135,28 @@ class ModuleManager:  # pylint: disable=R0902
                 provider_config = module_target.pop("provider").copy()
                 provider_type = provider_config.pop("type")
                 #
-                try:
-                    provider = importlib.import_module(
-                        f"pylon.core.providers.source.{provider_type}"
-                    ).Provider(self.context, provider_config)
-                    provider.init()
-                    #
-                    module_source = provider.get_source(module_target)
-                    #
-                    provider.deinit()
-                except:  # pylint: disable=W0702
-                    log.exception("Could not preload module: %s", module_name)
-                    continue
+                preload_retries = self.settings.get("preload_retries", 5)
+                preload_retry_delay = self.settings.get("preload_retry_delay", 5)
                 #
-                self.providers["plugins"].add_plugin(module_name, module_source)
+                for retry in range(preload_retries):
+                    try:
+                        provider = importlib.import_module(
+                            f"pylon.core.providers.source.{provider_type}"
+                        ).Provider(self.context, provider_config)
+                        provider.init()
+                        #
+                        module_source = provider.get_source(module_target)
+                        #
+                        provider.deinit()
+                    except:  # pylint: disable=W0702
+                        log.exception(
+                            "Could not preload module (retry=%s, delay=%s): %s",
+                            retry, preload_retry_delay, module_name,
+                        )
+                        time.sleep(preload_retry_delay)
+                    else:
+                        self.providers["plugins"].add_plugin(module_name, module_source)
+                        break
             #
             try:
                 module_loader, module_metadata = self._make_loader_and_metadata(module_name)
