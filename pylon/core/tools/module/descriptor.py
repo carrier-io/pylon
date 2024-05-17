@@ -50,6 +50,8 @@ class ModuleDescriptor:  # pylint: disable=R0902
         #
         self.requirements_base = None
         self.requirements_path = None
+        #
+        self.activated_paths = []
         self.activated_bases = []
         #
         self.module = None
@@ -572,6 +574,9 @@ class ModuleDescriptor:  # pylint: disable=R0902
             os.path.join(base, "bin") for base in reversed(self.activated_bases)
         ]
         new_path.extend(environ_path.split(os.pathsep))
+        #
         environ["PATH"] = os.pathsep.join(new_path)
+        environ["PYTHONUSERBASE"] = self.requirements_base
+        environ["PYTHONPATH"] = os.pathsep.join(self.activated_paths)
         #
         return process.run_command(*args, **target_kwargs, env=environ)
