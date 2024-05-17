@@ -35,7 +35,6 @@ from pylon.core.tools import (
     log,
     process,
     dependency,
-    env,
     db_support,
 )
 
@@ -59,7 +58,9 @@ class ModuleManager:  # pylint: disable=R0902
         self.providers = {}  # object_type -> provider_instance
         self.descriptors = {}  # module_name -> module_descriptor (all)
         self.modules = {}  # module_name -> module_descriptor (enabled)
+        #
         self.temporary_objects = []
+        self.activated_bases = []
         #
         self.descriptor = ModuleDescriptorProxy(self)
         self.module = ModuleProxy(self)
@@ -330,6 +331,8 @@ class ModuleManager:  # pylint: disable=R0902
             for module_descriptor in module_descriptors:
                 if module_descriptor.prepared:
                     self.activate_path(module_descriptor.requirements_path)
+                    self.activated_bases.append(module_descriptor.requirements_base)
+
         #
         for module_descriptor in module_descriptors:
             if not module_descriptor.prepared:
@@ -351,7 +354,9 @@ class ModuleManager:  # pylint: disable=R0902
             #
             if requirements_activation != "bulk":
                 self.activate_path(module_descriptor.requirements_path)
+                self.activated_bases.append(module_descriptor.requirements_base)
             #
+            module_descriptor.activated_bases = self.activated_bases.copy()
             self.activate_loader(module_descriptor.loader)
             #
             try:

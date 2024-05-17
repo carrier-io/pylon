@@ -20,6 +20,7 @@
 
 import os
 import sys
+import tempfile
 import functools
 import importlib
 
@@ -29,6 +30,7 @@ import jinja2  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import web
+from pylon.core.tools import process
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.config import config_substitution, vault_secrets
 
@@ -48,6 +50,7 @@ class ModuleDescriptor:  # pylint: disable=R0902
         #
         self.requirements_base = None
         self.requirements_path = None
+        self.activated_bases = []
         #
         self.module = None
         self.prepared = False
@@ -457,6 +460,33 @@ class ModuleDescriptor:  # pylint: disable=R0902
             else:
                 init()
 
+    def init_scripts(self):
+        """ Run init shell scripts """
+        scripts = self.metadata.get("init_scripts", [])
+        if not scripts:
+            scripts.append("bootstrap.sh")
+        #
+        local_path = self.loader.get_local_path()
+        runtime = self.metadata.get("init_scripts_runtime", "/bin/bash")
+        #
+        for script in scripts:
+            if not self.loader.has_file(script):
+                continue
+            #
+            if local_path is not None:
+                script_path = os.path.join(local_path, script)
+            else:
+                tmp_path = tempfile.mkdtemp()
+                self.context.module_manager.temporary_objects.append(tmp_path)
+                #
+                with open(os.path.join(tmp_path, script), "wb") as file:
+                    file.write(self.loader.get_data(script))
+                #
+                script_path = os.path.join(tmp_path, script)
+            #
+            log.info("Running init script: %s", script)
+            self.run_command([runtime, script_path])
+
     def init_all(  # pylint: disable=R0913
             self,
             url_prefix=None, static_url_prefix=None, use_template_prefix=True,
@@ -476,6 +506,8 @@ class ModuleDescriptor:  # pylint: disable=R0902
         self.init_api()
         self.init_methods(module_methods)
         self.init_inits(module_inits)
+        self.init_scripts()
+        #
         return self.init_blueprint(
             url_prefix, static_url_prefix, use_template_prefix, register_in_app, module_routes
         )
@@ -522,3 +554,24 @@ class ModuleDescriptor:  # pylint: disable=R0902
             raise RuntimeError(f"Tool is not registered: {name}")
         #
         delattr(sys.modules["tools"], name)
+
+    def run_command(self, *args, **kwargs):
+        """ Run command with PATH set to installed requirements 'bin' """
+        target_kwargs = kwargs.copy()
+        #
+        if "env" in target_kwargs:
+            environ = target_kwargs.pop("env").copy()
+        else:
+            environ = os.environ.copy()
+        #
+        environ_path = environ.pop("PATH", None)
+        if not environ_path:
+            environ_path = os.defpath
+        #
+        new_path = [
+            os.path.join(base, "bin") for base in reversed(self.activated_bases)
+        ]
+        new_path.extend(environ_path.split(os.pathsep))
+        environ["PATH"] = os.pathsep.join(new_path)
+        #
+        return process.run_command(*args, **target_kwargs, env=environ)

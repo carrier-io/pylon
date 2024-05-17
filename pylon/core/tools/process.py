@@ -25,18 +25,27 @@ import subprocess
 from pylon.core.tools import log
 
 
-def run_command(*args, **kvargs):
+def run_command(*args, **kwargs):
     """ Run command and log output """
-    proc = subprocess.Popen(*args, **kvargs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    target_kwargs = kwargs.copy()
+    for key in ["stdout", "stderr"]:
+        if key in target_kwargs:
+            target_kwargs.pop(key)
     #
-    while proc.poll() is None:
-        while True:
-            line = proc.stdout.readline().decode().strip()
-            #
-            if not line:
-                break
-            #
-            log.info(line)
-    #
-    if proc.returncode != 0:
-        raise RuntimeError(f"Command failed, return code={proc.returncode}")
+    with subprocess.Popen(
+        *args, **target_kwargs,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    ) as proc:
+        #
+        while proc.poll() is None:
+            while True:
+                line = proc.stdout.readline().decode().strip()
+                #
+                if not line:
+                    break
+                #
+                log.info(line)
+        #
+        if proc.returncode != 0:
+            raise RuntimeError(f"Command failed, return code={proc.returncode}")
