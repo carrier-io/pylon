@@ -88,7 +88,7 @@ class ModuleManager:  # pylint: disable=R0902
         # Create loaders for preload modules
         preload_module_meta_map = self._make_preload_module_meta_map()
         # Resolve preload module load order
-        preload_module_order = dependency.resolve_depencies(
+        preload_module_order = self._resolve_depencies(
             preload_module_meta_map, list(self.modules),
         )
         # Make preload module descriptors
@@ -105,7 +105,7 @@ class ModuleManager:  # pylint: disable=R0902
         # Create loaders for target modules
         target_module_meta_map = self._make_target_module_meta_map()
         # Resolve target module load order
-        target_module_order = dependency.resolve_depencies(
+        target_module_order = self._resolve_depencies(
             target_module_meta_map, list(self.modules),
         )
         # Make target module descriptors
@@ -117,6 +117,30 @@ class ModuleManager:  # pylint: disable=R0902
         # Activate and init modules
         log.info("Activating modules")
         self._activate_modules(target_module_descriptors)
+
+    def _resolve_depencies(self, module_map, present_modules=None):
+        local_module_map = module_map.copy()
+        #
+        while True:
+            try:
+                return dependency.resolve_depencies(local_module_map, present_modules)
+            except dependency.DependencyNotPresentError as e:
+                log.error(
+                    "Excluding module: '%s' (missing dependency: '%s')",
+                    e.required_by,
+                    e.missing_dependency,
+                )
+                #
+                local_module_map.pop(e.required_by, None)
+            except dependency.CircularDependencyError as e:
+                log.error(
+                    "Excluding modules: '%s', '%s' (circular dependency)",
+                    e.dependency_a,
+                    e.dependency_b,
+                )
+                #
+                local_module_map.pop(e.dependency_a, None)
+                local_module_map.pop(e.dependency_b, None)
 
     def _make_preload_module_meta_map(self):
         module_meta_map = {}  # module_name -> (metadata, loader)

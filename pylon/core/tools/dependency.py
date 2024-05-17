@@ -23,18 +23,42 @@
 from pylon.core.tools import log
 
 
+class DependencyNotPresentError(RuntimeError):
+    """ DependencyError """
+
+    def __init__(self, *args, missing_dependency, required_by, **kwargs):
+        self.missing_dependency = missing_dependency
+        self.required_by = required_by
+        #
+        super().__init__(*args, **kwargs)
+
+
+class CircularDependencyError(RuntimeError):
+    """ DependencyError """
+
+    def __init__(self, *args, dependency_a, dependency_b, **kwargs):
+        self.dependency_a = dependency_a
+        self.dependency_b = dependency_b
+        #
+        super().__init__(*args, **kwargs)
+
+
 def resolve_depencies(module_map, present_modules=None):
     """ Resolve depencies """
     if present_modules is None:
-        present_modules = list()
+        present_modules = []
     # Check required depencies
     for module_name, module_data in module_map.items():
-        for dependency in module_data[0].get("depends_on", list()):
+        for dependency in module_data[0].get("depends_on", []):
             if dependency not in module_map and dependency not in present_modules:
                 log.error("Dependency %s not present (required by %s)", dependency, module_name)
-                raise RuntimeError("Required dependency not present")
+                raise DependencyNotPresentError(
+                    "Required dependency not present",
+                    missing_dependency=dependency,
+                    required_by=module_name,
+                )
     # Walk modules
-    module_order = list()
+    module_order = []
     visited_modules = set()
     for module_name in module_map:
         if module_name not in module_order:
@@ -45,11 +69,11 @@ def resolve_depencies(module_map, present_modules=None):
 
 def _walk_module_depencies(module_name, module_map, module_order, visited_modules):
     # Collect depencies
-    depencies = list()
-    for required_dependency in module_map[module_name][0].get("depends_on", list()):
+    depencies = []
+    for required_dependency in module_map[module_name][0].get("depends_on", []):
         if required_dependency in module_map:
             depencies.append(required_dependency)
-    for optional_dependency in module_map[module_name][0].get("init_after", list()):
+    for optional_dependency in module_map[module_name][0].get("init_after", []):
         if optional_dependency in module_map:
             depencies.append(optional_dependency)
     # Resolve
@@ -58,7 +82,11 @@ def _walk_module_depencies(module_name, module_map, module_order, visited_module
         if dependency not in module_order:
             if dependency in visited_modules:
                 log.error("Circular dependency (%s <-> %s)", dependency, module_name)
-                raise RuntimeError("Circular dependency present")
+                raise CircularDependencyError(
+                    "Circular dependency present",
+                    dependency_a=dependency,
+                    dependency_b=module_name,
+                )
             _walk_module_depencies(dependency, module_map, module_order, visited_modules)
     # Add to resolved order
     module_order.append(module_name)
