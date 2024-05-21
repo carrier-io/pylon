@@ -119,6 +119,31 @@ class ModuleManager:  # pylint: disable=R0902
         # Activate and init modules
         log.info("Activating modules")
         self._activate_modules(target_module_descriptors)
+        # Run ready callbacks
+        log.info("Running ready callbacks")
+        self._run_ready_callbacks()
+
+    def _run_ready_callbacks(self):
+        for module_name in list(self.modules):
+            try:
+                db_support.create_local_session()
+                try:
+                    self.modules[module_name].module.ready()
+                finally:
+                    db_support.close_local_session()
+            except:  # pylint: disable=W0702
+                pass
+
+    def _run_unready_callbacks(self):
+        for module_name in reversed(list(self.modules)):
+            try:
+                db_support.create_local_session()
+                try:
+                    self.modules[module_name].module.unready()
+                finally:
+                    db_support.close_local_session()
+            except:  # pylint: disable=W0702
+                pass
 
     def _resolve_depencies(self, module_map, present_modules=None):
         local_module_map = module_map.copy()
@@ -391,6 +416,8 @@ class ModuleManager:  # pylint: disable=R0902
                 "Running in development mode before reloader is started. Skipping module unloading"
             )
             return
+        #
+        self._run_unready_callbacks()
         #
         for module_name in reversed(list(self.modules)):
             try:

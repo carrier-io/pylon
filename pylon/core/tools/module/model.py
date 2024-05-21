@@ -26,8 +26,30 @@ class ModuleModel:
 
     def init(self):
         """ Initialize module """
-        raise NotImplementedError()
 
     def deinit(self):
         """ De-initialize module """
-        raise NotImplementedError()
+
+    def ready(self):
+        """ Ready callback """
+
+    def unready(self):
+        """ Unready callback """
+
+    # def install(self):
+    #     """ Install handler """
+
+    # def uninstall(self):
+    #     """ Uninstall handler """
+
+    # def upgrade(self, version_from):
+    #     """ Upgrade handler """
+
+    # def downgrade(self, version_to):
+    #     """ Downgrade handler """
+
+    # def backup(self, backup_path):
+    #     """ Backup util """
+
+    # def restore(self, backup_path):
+    #     """ Restore util """
