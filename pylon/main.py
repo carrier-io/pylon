@@ -128,8 +128,9 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make stop event
     context.stop_event = threading.Event()
     # Enable zombie reaping
+    context.zombie_reaper = ZombieReaper(context)
     if context.settings.get("system", {}).get("zombie_reaping", {}).get("enabled", True):
-        ZombieReaper(context).start()
+        context.zombie_reaper.start()
     # Prepare SSL custom cert bundle
     ssl.init(context)
     # Enable SysLog logging if requested in config

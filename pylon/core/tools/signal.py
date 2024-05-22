@@ -48,6 +48,8 @@ class ZombieReaper(threading.Thread):
                 "interval", 15
             )
         )
+        #
+        self.external_pids = set()
 
     def run(self):
         """ Run reaper thread """
@@ -60,18 +62,46 @@ class ZombieReaper(threading.Thread):
                 log.exception("Exception in reaper thread, continuing")
 
     def _reap_zombies(self):
+        exited_pids = []
+        #
+        # Collect stopped processes
+        #
         while True:
             try:
-                child_siginfo = os.waitid(os.P_ALL, os.getpid(), os.WEXITED | os.WNOHANG)  # pylint: disable=E1101
+                child_siginfo = os.waitid(  # pylint: disable=E1101
+                    os.P_ALL, os.getpid(), os.WEXITED | os.WNOHANG | os.WNOWAIT  # pylint: disable=E1101
+                )
                 #
                 if child_siginfo is None:
                     break
                 #
+                child_pid = child_siginfo.si_pid
+                #
+                if child_pid in self.external_pids:
+                    continue
+                #
+                exited_pids.append(child_pid)
+            except:  # pylint: disable=W0702
+                break
+        #
+        # Process collected PIDs
+        #
+        while exited_pids:
+            child_pid = exited_pids.pop(0)
+            #
+            try:
+                child_siginfo = os.waitid(  # pylint: disable=E1101
+                    os.P_PID, child_pid, os.WEXITED | os.WNOHANG  # pylint: disable=E1101
+                )
+                #
+                if child_siginfo is None:
+                    continue
+                #
                 log.info(
-                    "Reaped child: %s -> %s -> %s",
+                    "Reaped child process: %s -> %s -> %s",
                     child_siginfo.si_pid,
                     child_siginfo.si_code,
                     child_siginfo.si_status,
                 )
             except:  # pylint: disable=W0702
-                break
+                continue
