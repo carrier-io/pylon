@@ -73,6 +73,7 @@ from pylon.core.tools import traefik
 from pylon.core.tools import exposure
 
 from pylon.core.tools.signal import signal_sigterm
+from pylon.core.tools.signal import ZombieReaper
 from pylon.core.tools.context import Context
 
 from pylon.framework import toolkit
@@ -80,7 +81,7 @@ from pylon.framework import toolkit
 
 def main():  # pylint: disable=R0912,R0914,R0915
     """ Entry point """
-    # Register signal handling
+    # Register signal handling early
     signal.signal(signal.SIGTERM, signal_sigterm)
     # Enable logging and say hello
     log.enable_logging()
@@ -124,6 +125,11 @@ def main():  # pylint: disable=R0912,R0914,R0915
     if context.web_runtime != "gevent" and "runtime" in context.settings.get("server", {}):
         context.web_runtime = context.settings.get("server").get("runtime")
     # TODO: reinit logging after full switch to centry_logging
+    # Make stop event
+    context.stop_event = threading.Event()
+    # Enable zombie reaping
+    if context.settings.get("system", {}).get("zombie_reaping", {}).get("enabled", True):
+        ZombieReaper(context).start()
     # Prepare SSL custom cert bundle
     ssl.init(context)
     # Enable SysLog logging if requested in config
@@ -180,6 +186,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         server.run_server(context)
     finally:
         log.info("WSGI server stopped")
+        # Set stop event
+        context.stop_event.set()
         # Unexpose pylon
         exposure.unexpose(context)
         # Unregister traefik route
