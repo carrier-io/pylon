@@ -62,7 +62,7 @@ class ZombieReaper(threading.Thread):
     def _reap_zombies(self):
         while True:
             try:
-                child_siginfo = os.waitid(os.P_PGID, os.getpid(), os.WEXITED | os.WNOHANG)  # pylint: disable=E1101
+                child_siginfo = os.waitid(os.P_ALL, os.getpid(), os.WEXITED | os.WNOHANG)  # pylint: disable=E1101
                 #
                 if child_siginfo is None:
                     break
