@@ -45,7 +45,7 @@ class ZombieReaper(threading.Thread):
             ).get(
                 "zombie_reaping", {}
             ).get(
-                "interval", 15
+                "interval", 1
             )
         )
         #
