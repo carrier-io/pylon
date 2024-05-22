@@ -63,6 +63,7 @@ class ZombieReaper(threading.Thread):
 
     def _reap_zombies(self):
         exited_pids = []
+        known_pids = set()
         #
         # Collect stopped processes
         #
@@ -76,6 +77,11 @@ class ZombieReaper(threading.Thread):
                     break
                 #
                 child_pid = child_siginfo.si_pid
+                #
+                if child_pid in known_pids:
+                    break
+                #
+                known_pids.add(child_pid)
                 #
                 if child_pid in self.external_pids:
                     continue
