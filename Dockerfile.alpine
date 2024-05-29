@@ -2,7 +2,7 @@ FROM --platform=$TARGETPLATFORM python:3.10-alpine
 WORKDIR /usr/src/app
 
 RUN set -x \
-  && apk add bash vim alpine-sdk git libpq-dev libffi-dev
+  && apk add bash vim alpine-sdk git libpq-dev libffi-dev curl
 
 RUN set -x \
   && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
