@@ -8,6 +8,7 @@ RUN set -x \
 RUN set -x \
   && apt-get update \
   && apt-get install --no-install-recommends -y \
+      dumb-init \
       geoip-database \
       libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 \
       libcairo2 libcups2 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 \
@@ -35,4 +36,5 @@ RUN set -x \
   && pip install $PIP_ARGS ./pylon \
   && rm -r ./pylon
 
-CMD [ "python", "-m", "pylon.main" ]
+COPY ./entrypoint.sh ./entrypoint.sh
+CMD [ "bash", "./entrypoint.sh" ]

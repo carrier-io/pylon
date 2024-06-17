@@ -2,7 +2,7 @@ FROM --platform=$TARGETPLATFORM python:3.10-alpine
 WORKDIR /usr/src/app
 
 RUN set -x \
-  && apk add bash vim alpine-sdk git libpq-dev libffi-dev curl
+  && apk add bash dumb-init vim alpine-sdk git libpq-dev libffi-dev curl
 
 RUN set -x \
   && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
@@ -22,4 +22,5 @@ RUN set -x \
   && pip install $PIP_ARGS ./pylon \
   && rm -r ./pylon
 
-CMD [ "python", "-m", "pylon.main" ]
+COPY ./entrypoint.sh ./entrypoint.sh
+CMD [ "bash", "./entrypoint.sh" ]

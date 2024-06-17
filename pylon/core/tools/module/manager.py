@@ -364,6 +364,7 @@ class ModuleManager:  # pylint: disable=R0902
         for module_descriptor in module_descriptors:
             if not module_descriptor.prepared:
                 log.warning("Skipping un-prepared module: %s", module_descriptor.name)
+                continue
             #
             all_required_dependencies_present = True
             #
