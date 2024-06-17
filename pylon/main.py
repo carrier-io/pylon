@@ -129,7 +129,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.stop_event = threading.Event()
     # Enable zombie reaping
     context.zombie_reaper = ZombieReaper(context)
-    if context.settings.get("system", {}).get("zombie_reaping", {}).get("enabled", True):
+    if context.settings.get("system", {}).get("zombie_reaping", {}).get("enabled", False):
         context.zombie_reaper.start()
     # Prepare SSL custom cert bundle
     ssl.init(context)

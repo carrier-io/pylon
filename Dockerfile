@@ -36,5 +36,8 @@ RUN set -x \
   && pip install $PIP_ARGS ./pylon \
   && rm -r ./pylon
 
-COPY ./entrypoint.sh ./entrypoint.sh
-CMD [ "bash", "./entrypoint.sh" ]
+COPY ./entrypoint.sh /usr/local/sbin/entrypoint.sh
+RUN set -x \
+  && chmod 755 /usr/local/sbin/entrypoint.sh
+
+CMD [ "bash", "/usr/local/sbin/entrypoint.sh" ]
