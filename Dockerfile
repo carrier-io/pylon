@@ -19,6 +19,7 @@ RUN set -x \
       fonts-noto-color-emoji fonts-unifont libfontconfig1 libfreetype6 \
       xfonts-scalable fonts-liberation \
       fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf fonts-freefont-ttf \
+      dos2unix \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -38,6 +39,7 @@ RUN set -x \
 
 COPY ./entrypoint.sh /usr/local/sbin/entrypoint.sh
 RUN set -x \
+  && dos2unix /usr/local/sbin/entrypoint.sh \
   && chmod 755 /usr/local/sbin/entrypoint.sh
 
 CMD [ "bash", "/usr/local/sbin/entrypoint.sh" ]

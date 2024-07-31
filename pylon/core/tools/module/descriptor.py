@@ -35,7 +35,7 @@ from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.config import config_substitution, vault_secrets
 
 
-class ModuleDescriptor:  # pylint: disable=R0902
+class ModuleDescriptor:  # pylint: disable=R0902,R0904
     """ Module descriptor """
 
     def __init__(self, context, name, loader, metadata, requirements):  # pylint: disable=R0913
@@ -489,6 +489,45 @@ class ModuleDescriptor:  # pylint: disable=R0902
             log.info("Running init script: %s", script)
             self.run_command([runtime, script_path])
 
+    def init_db(self):
+        """ Load and initialize DB support """
+        # Local imports
+        # from tools import this  # pylint: disable=E0401,C0415
+        from pylon.framework.db import db_migrations  # pylint: disable=C0415
+        # Step: load models
+        module_pkg = self.loader.module_name
+        #
+        if self.loader.has_directory("db/models"):
+            for model_resource in importlib.resources.contents(
+                    f"{module_pkg}.db.models"
+            ):
+                if not self.loader.has_file(f"db/models/{model_resource}"):
+                    continue
+                if model_resource.startswith("_") or not model_resource.endswith(".py"):
+                    continue
+                #
+                resource_name, _ = os.path.splitext(model_resource)
+                #
+                try:
+                    importlib.import_module(
+                        f"{module_pkg}.db.models.{resource_name}"
+                    )
+                except:  # pylint: disable=W0702
+                    log.exception(
+                        "Failed to import DB model module: %s",
+                        resource_name,
+                    )
+                    continue
+        # Step: create entities
+        # module_this = this.for_module(module_pkg)
+        # db_namespace_helper = module_this.spaces.get("db_namespace_helper", None)
+        # if db_namespace_helper is not None:
+        #     db_namespaces = db_namespace_helper.get_namespaces()
+        # Step: run migrations
+        if self.loader.has_directory("db/migrations"):
+            db_migrations.run_db_migrations(self.module, self.context.db.url)
+        # Step: run automigrations
+
     def init_all(  # pylint: disable=R0913
             self,
             url_prefix=None, static_url_prefix=None, use_template_prefix=True,
@@ -507,6 +546,7 @@ class ModuleDescriptor:  # pylint: disable=R0902
         self.init_sio(module_sios)
         self.init_api()
         self.init_methods(module_methods)
+        self.init_db()
         self.init_inits(module_inits)
         self.init_scripts()
         #

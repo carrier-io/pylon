@@ -152,7 +152,6 @@ class RpcManager:
 
 def invoke_function(function, *args, **kwargs):
     """ Run function """
-    # FIXME: case when RPC (local func) is called from request handler
     db_support.create_local_session()
     try:
         return function(*args, **kwargs)

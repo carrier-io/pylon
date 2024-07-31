@@ -21,6 +21,7 @@
 import inspect
 
 from pylon.core.tools import db_support
+from pylon.core.tools.context import Context
 
 
 class This:  # pylint: disable=R0903
@@ -29,6 +30,7 @@ class This:  # pylint: disable=R0903
     def __init__(self, context):
         self.__context = context
         self.__modules = {}
+        self.__spaces = {}
 
     def __getattr__(self, name):
         module_name = None
@@ -46,7 +48,7 @@ class This:  # pylint: disable=R0903
     def for_module(self, name):
         """ Get exact for known module name """
         if name not in self.__modules:
-            self.__modules[name] = ModuleThis(self.__context, name)
+            self.__modules[name] = ModuleThis(self.__context, self.__spaces, name)
         #
         return self.__modules[name]
 
@@ -54,8 +56,11 @@ class This:  # pylint: disable=R0903
 class ModuleThis:  # pylint: disable=R0903
     """ Exact module-specific tools/helpers """
 
-    def __init__(self, context, module_name):
+    def __init__(self, context, spaces, module_name):
         self.context = context
+        self.spaces = spaces
         self.module_name = module_name
         #
-        self.db = db_support.make_module_entities(self.context, self.module_name)
+        self.data = Context()
+        #
+        self.db = db_support.make_module_entities(self.context, self.spaces)

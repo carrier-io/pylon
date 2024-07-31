@@ -50,21 +50,26 @@ def init(context):
     #
     # App DB
     #
-    db_config = context.settings.get("db", {})
-    #
     context.db = Context()
-    context.db.url = get_db_url(db_config)
-    context.db.engine = make_engine(db_config)
+    context.db.config = context.settings.get("db", {})
+    #
+    context.db.url = get_db_url(context.db)
+    context.db.engine = make_engine(context.db)
+    #
+    context.db.schema_mapper = lambda schema: schema
     context.db.make_session = make_session_fn(context.db)
     #
     # Pylon DB
     #
-    pylon_db_config = context.settings.get("pylon_db", {})
-    #
     context.pylon_db = Context()
-    context.pylon_db.url = get_db_url(pylon_db_config)
-    context.pylon_db.engine = make_engine(pylon_db_config)
+    context.pylon_db.config = context.settings.get("pylon_db", {})
+    #
+    context.pylon_db.url = get_db_url(context.pylon_db)
+    context.pylon_db.engine = make_engine(context.pylon_db)
+    #
+    context.pylon_db.schema_mapper = lambda schema: schema
     context.pylon_db.make_session = make_session_fn(context.pylon_db)
+    #
     context.pylon_db.metadata = sqlalchemy.MetaData()
     context.pylon_db.Base = declarative_base(
         metadata=context.pylon_db.metadata,
@@ -124,17 +129,17 @@ def db_teardown_appcontext(*args, **kwargs):
 
 
 #
-# Tools
+# Tools: engine
 #
 
 
-def get_db_url(db_config):
+def get_db_url(target_db):
     """ Get URL """
-    return db_config.get("engine_url", "sqlite://")
+    return target_db.config.get("engine_url", "sqlite://")
 
 
 def make_engine(
-        db_config,
+        target_db,
         mute_first_failed_connections=0,
         connection_retry_interval=3.0,
         max_failed_connections=None,
@@ -142,20 +147,26 @@ def make_engine(
 ):
     """ Make Engine and try to connect """
     #
-    db_engine_url = get_db_url(db_config)
-    db_engine_kwargs = db_config.get("engine_kwargs", {})
+    db_engine_url = target_db.url
+    db_engine_kwargs = target_db.config.get("engine_kwargs", {}).copy()
     default_schema = None
     #
-    if "default_schema" in db_config:
-        default_schema = db_config["default_schema"]
+    if "default_schema" in target_db.config:
+        default_schema = target_db.config["default_schema"]
         #
         if "execution_options" not in db_engine_kwargs:
             db_engine_kwargs["execution_options"] = {}
+        else:
+            db_engine_kwargs["execution_options"] = \
+                db_engine_kwargs["execution_options"].copy()
         #
         execution_options = db_engine_kwargs["execution_options"]
         #
         if "schema_translate_map" not in execution_options:
             execution_options["schema_translate_map"] = {}
+        else:
+            execution_options["schema_translate_map"] = \
+                execution_options["schema_translate_map"].copy()
         #
         execution_options["schema_translate_map"][None] = default_schema
     #
@@ -198,17 +209,23 @@ def make_engine(
 def make_session_fn(target_db):
     """ Create make_session() """
     _target_db = target_db
+    _default_source_schema = target_db.config.get("default_source_schema", None)
     #
-    def _make_session(schema=..., source_schema=None):
-        if schema is ...:
+    def _make_session(schema=..., source_schema=_default_source_schema):
+        target_schema = _target_db.schema_mapper(schema)
+        #
+        if target_schema is ...:
             target_engine = _target_db.engine
         else:
             execution_options = dict(_target_db.engine.get_execution_options())
             #
             if "schema_translate_map" not in execution_options:
                 execution_options["schema_translate_map"] = {}
+            else:
+                execution_options["schema_translate_map"] = \
+                    execution_options["schema_translate_map"].copy()
             #
-            execution_options["schema_translate_map"][source_schema] = schema
+            execution_options["schema_translate_map"][source_schema] = target_schema
             #
             target_engine = _target_db.engine.execution_options(
                 **execution_options,
@@ -222,24 +239,69 @@ def make_session_fn(target_db):
     return _make_session
 
 
+#
+# Tools: local sessions
+#
+
+
+def check_local_entities():
+    """ Validate or set entities in local """
+    from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
+    check_entities = {
+        "db_session": None,
+        "db_session_refs": 0,
+    }
+    #
+    for key, default in check_entities.items():
+        if key not in context.local.__dict__:
+            setattr(context.local, key, default)
+
+
 def create_local_session():
     """ Create and configure session, save in local """
     from tools import context  # pylint: disable=E0401,C0411,C0415
     #
-    context.local.db_session = context.db.make_session()
+    # Check local entities
+    #
+    check_local_entities()
+    #
+    # Create DB session if needed
+    #
+    if context.local.db_session is None:
+        context.local.db_session = context.db.make_session()
+    #
+    # Increment refs count
+    #
+    context.local.db_session_refs += 1
 
 
 def close_local_session():
     """ Finalize and close local session """
     from tools import context  # pylint: disable=E0401,C0411,C0415
     #
-    if "session" not in context.local.__dict__:
-        return
+    # Check local entities
+    #
+    check_local_entities()
+    #
+    # Decrement refs count
+    #
+    if context.local.db_session_refs > 0:
+        context.local.db_session_refs -= 1
+    #
+    if context.local.db_session_refs > 0:
+        return  # We are in 'inner' close, leave session untouched
+    #
+    context.local.db_session_refs = 0
+    #
+    # Close session
     #
     session = context.local.db_session
     #
     if session is None:
-        return
+        return  # Closed or broken elsewhere
+    #
+    context.local.db_session = None
     #
     try:
         if session.is_active:
@@ -248,18 +310,44 @@ def close_local_session():
             session.rollback()
     finally:
         session.close()
+
+
+#
+# Tools: module entities
+#
+
+
+class DbNamespaceHelper:  # pylint: disable=R0903
+    """ Namespace-specific tools/helpers """
+
+    def __init__(self, context):
+        self.__context = context
+        self.__namespaces = {}
+
+    def __getattr__(self, name):
+        if name not in self.__namespaces:
+            self.__namespaces[name] = make_module_entities(self.__context)
         #
-        context.local.db_session = None
+        return self.__namespaces[name]
+
+    def get_namespaces(self):
+        """ Get present namespaces """
+        return self.__namespaces
 
 
-def make_module_entities(context, module_name):
+def make_module_entities(context, spaces=None):
     """ Make module-specific entities """
-    _ = context, module_name
     result = Context()
     #
     result.metadata = sqlalchemy.MetaData()
     result.Base = declarative_base(
         metadata=result.metadata,
     )
+    #
+    if spaces is not None:
+        if "db_namespace_helper" not in spaces:
+            spaces["db_namespace_helper"] = DbNamespaceHelper(context)
+        #
+        result.ns = spaces["db_namespace_helper"]
     #
     return result

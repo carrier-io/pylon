@@ -2,7 +2,7 @@ FROM --platform=$TARGETPLATFORM python:3.10-alpine
 WORKDIR /usr/src/app
 
 RUN set -x \
-  && apk add bash dumb-init vim alpine-sdk git libpq-dev libffi-dev curl
+  && apk add bash dumb-init vim alpine-sdk git libpq-dev libffi-dev curl dos2unix
 
 RUN set -x \
   && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
@@ -24,6 +24,7 @@ RUN set -x \
 
 COPY ./entrypoint.sh /usr/local/sbin/entrypoint.sh
 RUN set -x \
+  && dos2unix /usr/local/sbin/entrypoint.sh \
   && chmod 755 /usr/local/sbin/entrypoint.sh
 
 CMD [ "bash", "/usr/local/sbin/entrypoint.sh" ]
