@@ -41,6 +41,7 @@ def enable_basic_logging():
     arbiter_log.initialized = True
     #
     log.init(level=basic_log_level, force=True)
+    apply_pylon_patches()
 
 
 def reinit_logging(context):
@@ -70,6 +71,7 @@ def reinit_logging(context):
             log_config["level"] = logging.DEBUG
         #
         log.init(config=log_config, force=True)
+        apply_pylon_patches()
         return
     #
     # Construct config from debug mode, env vars, syslog and loki settings
@@ -107,3 +109,15 @@ def reinit_logging(context):
         log_config["handlers"].append(loki_config)
     #
     log.init(config=log_config, force=True)
+    apply_pylon_patches()
+
+
+def apply_pylon_patches():
+    """ Pylon-specific logging patches """
+    loggers_to_info = [
+        # Mute websocket debug messages
+        "geventwebsocket.handler",
+    ]
+    #
+    for logger in loggers_to_info:
+        logging.getLogger(logger).setLevel(logging.INFO)
