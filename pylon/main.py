@@ -57,8 +57,7 @@ import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
 
 from pylon.core.tools import log
-from pylon.core.tools import log_syslog
-from pylon.core.tools import log_loki
+from pylon.core.tools import log_support
 from pylon.core.tools import db_support
 from pylon.core.tools import module
 from pylon.core.tools import event
@@ -83,8 +82,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     """ Entry point """
     # Register signal handling early
     signal.signal(signal.SIGTERM, signal_sigterm)
-    # Enable logging and say hello
-    log.enable_logging()
+    # Enable basic logging and say hello
+    log_support.enable_basic_logging()
     log.info("Starting plugin-based Carrier/Centry core")
     # Make context holder
     context = Context()
@@ -124,7 +123,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Allow to override runtime from config (if != gevent in env)
     if context.web_runtime != "gevent" and "runtime" in context.settings.get("server", {}):
         context.web_runtime = context.settings.get("server").get("runtime")
-    # TODO: reinit logging after full switch to centry_logging
+    # Reinit logging with full config
+    log_support.reinit_logging(context)
     # Make stop event
     context.stop_event = threading.Event()
     # Enable zombie reaping
@@ -133,10 +133,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
         context.zombie_reaper.start()
     # Prepare SSL custom cert bundle
     ssl.init(context)
-    # Enable SysLog logging if requested in config
-    log_syslog.enable_syslog_logging(context)
-    # Enable Loki logging if requested in config
-    log_loki.enable_loki_logging(context)
     # Make ModuleManager instance
     log.info("Creating ModuleManager instance")
     context.module_manager = module.ModuleManager(context)
