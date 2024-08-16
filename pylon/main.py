@@ -149,8 +149,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.api = flask_restful.Api(context.app, catch_all_404s=True)
     # Initialize local data
     context.local = threading.local()
-    # Initialize DB support
-    db_support.init(context)
     # Make SocketIO instance
     log.info("Creating SocketIO instance")
     context.sio = server.create_socketio_instance(context)
@@ -171,6 +169,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     git.apply_patches()
     # Init framework toolkit
     toolkit.init(context)
+    # Initialize DB support
+    db_support.init(context)
     # Load and initialize modules
     context.module_manager.init_modules()
     context.event_manager.fire_event("pylon_modules_initialized", context.id)

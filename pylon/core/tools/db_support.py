@@ -20,7 +20,9 @@
     DB support tools
 """
 
+import os
 import time
+import importlib
 
 import sqlalchemy  # pylint: disable=E0401
 from sqlalchemy.orm import (  # pylint: disable=E0401
@@ -74,6 +76,30 @@ def init(context):
     context.pylon_db.Base = declarative_base(
         metadata=context.pylon_db.metadata,
     )
+    #
+    for model_resource in importlib.resources.contents(
+            "pylon.framework.db.models"
+    ):
+        if model_resource.startswith("_") or not model_resource.endswith(".py"):
+            continue
+        #
+        resource_name, _ = os.path.splitext(model_resource)
+        #
+        try:
+            importlib.import_module(
+                f"pylon.framework.db.models.{resource_name}"
+            )
+        except:  # pylint: disable=W0702
+            log.exception(
+                "Failed to import Pylon DB model module: %s",
+                resource_name,
+            )
+            continue
+    #
+    try:
+        context.pylon_db.metadata.create_all(bind=context.pylon_db.engine)
+    except:  # pylint: disable=W0702
+        log.exception("Failed to create Pylon DB entities")
     #
     # App hooks
     #

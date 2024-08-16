@@ -442,6 +442,10 @@ class ModuleManager:  # pylint: disable=R0902
                 pass
 
     def _init_providers(self):
+        internal_providers = {
+            "config": "pylon.core.providers.internal.db_config",
+        }
+        #
         for key in ["plugins", "requirements", "config"]:
             log.info("Initializing %s provider", key)
             #
@@ -456,8 +460,15 @@ class ModuleManager:  # pylint: disable=R0902
             provider = importlib.import_module(
                 f"pylon.core.providers.{key}.{provider_type}"
             ).Provider(self.context, provider_config)
-            provider.init()
             #
+            if key in internal_providers:
+                backend_provider = provider
+                #
+                provider = importlib.import_module(
+                    internal_providers[key]
+                ).Provider(self.context, backend_provider)
+            #
+            provider.init()
             self.providers[key] = provider
 
     def _deinit_providers(self):
