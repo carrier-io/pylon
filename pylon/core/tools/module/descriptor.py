@@ -47,6 +47,7 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         #
         self.path = self.loader.get_local_path()
         self.config = None
+        self.config_data = None
         #
         self.requirements_base = None
         self.requirements_path = None
@@ -69,9 +70,9 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         #
         custom_config_data = {}
         if self.context.module_manager.providers["config"].config_data_exists(self.name):
-            custom_config_data = self._load_yaml_data(
-                self.context.module_manager.providers["config"].get_config_data(self.name), "custom"
-            )
+            self.config_data = \
+                self.context.module_manager.providers["config"].get_config_data(self.name)
+            custom_config_data = self._load_yaml_data(self.config_data, "custom")
         #
         yaml_data = {}
         yaml_data = recursive_merge(yaml_data, base_config_data)
