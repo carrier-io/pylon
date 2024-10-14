@@ -20,6 +20,8 @@ RUN set -x \
       xfonts-scalable fonts-liberation \
       fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf fonts-freefont-ttf \
       dos2unix \
+      poppler-data poppler-utils libpoppler-cpp0v5 libpoppler-glib8 \
+      tesseract-ocr-all \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
